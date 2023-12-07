@@ -1,3 +1,20 @@
+//
+// ingestion.proto
+//
+// Contains RPC messages and interface specific to the Ingestion Service.
+//
+// since: July, 2023
+// version: 1.0.0
+//
+// NOTES:
+//
+//
+// TODO:
+// - Naming suggestions (CKA)
+//
+
+
+
 syntax = "proto3";
 
 option java_multiple_files = true;
@@ -5,32 +22,89 @@ option java_package = "com.ospreydcs.dp.grpc.v1.ingestion";
 
 import "common.proto";
 
+
+//
+// ------------------- RPC Interfaces ---------------------------
+//
+
+
+/*
+ * The Ingestion Service Interface
+ *
+ * Defines RPC operations for data provider registration and ingestion.
+ *
+ * registerProvider - registers data provider and obtain provide UID
+ * streamingIngestion - data ingestion via gRPC streaming
+ * unaryIngestion - data ingestion via standard RPC 
+ */
 service DpIngestionService {
-  rpc registerProvider (RegisterProviderRequest) returns (RegisterProviderResponse);
+  rpc registerProvider (RegistrationRequest) returns (RegistrationResponse);
   rpc streamingIngestion (stream IngestionRequest) returns (stream IngestionResponse);
   rpc unaryIngestion (IngestionRequest) returns (IngestionResponse);
 }
 
-message RegisterProviderRequest {
+
+//
+// ------------------- Provider Registration ---------------------------
+//
+
+/*
+ * Data provider Registration Request
+ * 
+ * Data providers are registered by name, which must be unique (field providerName).
+ *
+ * If a data provider has previously registered with the Ingestion Service, its established
+ * UID will be returned in the response.  For an initial registration a new UID is
+ * created, stored, and returned.
+ */
+message RegistrationRequest {	// CKA - Rename suggestion
+//message RegisterProviderRequest {
   string providerName = 1;
   repeated Attribute attributes = 2;
   Timestamp requestTime = 3;
 }
 
-message RegisterProviderResponse {
+/*
+ * Data Provider Registration Response
+ *
+ * The response message contains the UID for the data provider.
+ *
+ * The data provider UID is contained with the RegistrationDetails message.  If the
+ * registration fails a RejectionDetails message is set in lieu of the RegistrationDetails
+ * message.
+ *
+ * If a data provider has previously registered with the Ingestion Service, its established
+ * UID will be returned in the response.  For an initial registration a new UID is
+ * created, stored, and returned.
+ */  
+message RegistrationResponse {  // CKA - Rename suggestion
+//message RegisterProviderResponse {
 
   ResponseType responseType = 1;
   Timestamp responseTime = 2;
 
-  oneof details_oneof {
-    RegisterProviderDetails registerProviderDetails = 10;
-    RejectDetails rejectDetails = 11;
+  oneof details {  // CKA - Rename suggestion
+//  oneof details_oneof {
+    RegistrationDetails registrationDetails = 10;
+    RejectionDetails rejectionDetails = 11;
   }
 }
 
-message RegisterProviderDetails {
+/*
+ * Data Provider Registration Record
+ *
+ * This record message contains the UID of the data provider upon successful registration 
+ * with the Ingestion Service.
+ */
+message RegistrationDetails {  // CKA - Rename suggestion
+//message RegisterProviderDetails {
   uint32 providerId = 1;
 }
+
+
+//
+// ------------------- Data Ingestion ---------------------------
+//
 
 message IngestionRequest {
   uint32 providerId = 1;
@@ -50,7 +124,7 @@ message IngestionResponse {
 
   oneof details_oneof {
     AckDetails ackDetails = 10;
-    RejectDetails rejectDetails = 11;
+    RejectionDetails rejectionDetails = 11;
   }
 }
 

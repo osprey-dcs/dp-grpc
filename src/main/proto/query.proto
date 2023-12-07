@@ -1,3 +1,20 @@
+//
+// query.proto
+//
+// Contains RPC messages and interface specific to the Query Service.
+//
+// since: July, 2023
+// version: 1.0.0
+//
+// NOTES:
+// - Carried over naming suggestions from common.proto (CKA)
+//
+// TODO:
+// - Naming suggestions (CKA)
+//
+
+
+
 syntax = "proto3";
 
 option java_multiple_files = true;
@@ -21,7 +38,7 @@ message QueryDataResponse {
 
   oneof details_oneof {
     QueryResultDetails queryResultDetails = 10;
-    RejectDetails rejectDetails = 11;
+    RejectionDetails rejectionDetails = 11;
   }
 }
 

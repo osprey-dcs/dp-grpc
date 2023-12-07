@@ -1,43 +1,168 @@
+//
+// common.proto
+//
+// Contains RPC messages common to all services.
+//
+// since: July, 2023
+// version: 1.0.0
+//
+// NOTES:
+//
+//
+// TODO:
+// - Naming redefinitions and suggestions (CKA)
+//
+
+
+
 syntax = "proto3";
 
 option java_multiple_files = true;
 option java_package = "com.ospreydcs.dp.grpc.v1.common";
 
+
+//
+// ------------------- Miscellaneous Definitions ---------------------------
+//
+
+/*
+ * Generic attribute.
+ */
+message Attribute {
+  string name = 1;
+  string value = 2;
+}
+
+/*
+ * Metadata associated with an ingestion/archiving event?
+ *
+ * NOTES:
+ * CKA - I do not believe that a query operation will contain metadata.
+ */
+message EventMetadata {
+  Timestamp eventTimestamp = 1;
+  string eventDescription = 2;
+}
+
+
+//
+// ------------------- Time Definitions ---------------------------
+//
+
+/*
+ * Time instant described by epoch.
+ */
 message Timestamp {
   uint64 epochSeconds = 1;  // seconds past unix epoch - 1st january 1970
   uint64 nanoseconds = 2;   // nanoseconds - sub-second precision down to the nanosecond
 }
 
+/*
+ * Ordered list of Timestamp messages.
+ */ 
 message TimestampList {
   repeated Timestamp timestamps = 1;
 }
 
+/*
+ * Collection of timestamps identified by sampling interval.
+ * 
+ * Uniform sampling is assumed within sampling interval.
+ * Thus, the ordered collection of timestamps are defined as a contiguous, equally-spaced point set 
+ * {t1, t2, ..., tN} within the following interval:
+ * 
+ *    [startTime, (count-1)*periodNanos]
+ *
+ * The timestamps {t1, t2, ..., tN} are then given by
+ * 
+ *    t1 = startTime, 
+ *    t2 = startTime + 1 * periodNanos,
+ *    t3 = startTime + 2 * periodNanos,
+ *    ...
+ *    tN = startTime + (N-1) * periodNanos,
+ *
+ * where N = count.
+ */
+message SamplingInterval {
+  Timestamp startTime = 1;
+  uint64 periodNanos = 2;
+  uint32 count = 3;
+}
+
+//message FixedIntervalTimestampSpec {
+//  Timestamp startTime = 1;
+//  uint64 sampleIntervalNanos = 2;
+//  uint32 numSamples = 3;
+//}
+
+/*
+ * Specifies the set of timestamps for a dataset collection.
+ *
+ * The timestamps are identified as either of the following:
+ * 
+ *  - SamplingInterval - time instants required for uniform sampling
+ *  - TimestampList - explicit set of ordered time instants 
+ *
+ */
 message DataTimeSpec {
   oneof value_oneof {
-    FixedIntervalTimestampSpec fixedIntervalTimestampSpec = 1;
+    SamplingInterval interval = 1;
     TimestampList timestampList = 2;
   }
 }
 
-message FixedIntervalTimestampSpec {
-  Timestamp startTime = 1;
-  uint64 sampleIntervalNanos = 2;
-  uint32 numSamples = 3;
-}
+//message DataTimeSpec {
+//  oneof value_oneof {
+//    FixedIntervalTimestampSpec fixedIntervalTimestampSpec = 1;
+//    TimestampList timestampList = 2;
+//  }
+//}
 
+
+//
+// ------------------- Ingestion Definitions ---------------------------
+//
+
+/*
+ * The unit of ingestion.
+ *
+ * Data is ingested into the Data Platform in tabular form.  The table consists
+ * of a collection of timestamps and an collection of table columns containing
+ * heterogeneous data.
+ *  - dataTimeSpec - set of (ordered) timestamps for each column
+ *  - dataColumns - an (unordered) collection of DataColumn messages.  
+ *
+ * Each data column must be the same size, the number of timestamps identified in dataTimeSpec.
+ *
+ * NOTES (CKA):
+ * - Perhaps this should be moved to ingestion.proto?
+ */
 message DataTable {
   DataTimeSpec dataTimeSpec = 1;
   repeated DataColumn dataColumns = 2;
 }
 
+/*
+ * A named vector of heterogeneous data values.
+ *
+ */
 message DataColumn {
   string name = 1;
   repeated DataValue dataValues = 2;
 }
 
+
+//
+// ------------------- Data Definitions ---------------------------
+//
+
+/*
+ * The unit of heterogeneous data.
+ */
 message DataValue {
 
-  oneof value_oneof {
+//  oneof value_oneof { // CKA - identifier change
+  oneof value {
     string stringValue = 1;             // String value
     double floatValue = 2;              // floating point value
     uint64 intValue = 3;                // integer value
@@ -47,7 +172,17 @@ message DataValue {
     Structure structureValue = 7;      // structure value
     Array arrayValue = 8;              // Array value
   }
+  
+  ValueStatus status = 10;		// CKA - no status in original DataValue
 
+  /*
+   * Status of current data value.
+   *
+   * The current status definition reflects the value at acquisition time 
+   * (e.g., as in the EPIC record fields).
+   *
+   * In the future we may wish to support archiving status as well (CLIENT_STATUS?). 
+   */
   message ValueStatus {
 
     string message = 1;
@@ -75,34 +210,45 @@ message DataValue {
   }
 }
 
-message Attribute {
-  string name = 1;
-  string value = 2;
-}
 
-message EventMetadata {
-  Timestamp eventTimestamp = 1;
-  string eventDescription = 2;
-}
-
+/*
+ * General data structure.
+ */
 message Structure {
   repeated Field fields = 1;
 }
 
+/*
+ * CKA- Perhaps this should be an enclosed message of Structure?
+ * This message will unlikely be used elsewhere.
+ */
 message Field {
   string name = 1;
   DataValue value = 2;
 }
 
+
+/*
+ * Array data structure.
+ */
 message Array {
   repeated DataValue dataValues = 1;
 }
 
+/*
+ * An image file.
+ * 
+ * Images are stored as raw data as a byte vector.  Interpretation is determined by standard
+ * image file formats enumerated by FileType.
+ */
 message Image {
 
   bytes image = 1;
   FileType fileType = 2;
 
+  /*
+   * Image file format.  Also used as file extension.
+   */
   enum FileType {
     RAW = 0;
     JPEG = 1;
@@ -116,6 +262,14 @@ message Image {
   }
 }
 
+
+//
+// ------------------- Common Messages ---------------------------
+//
+
+/*
+ * Perhaps this should be specific to ingestion, query, or annotation?
+ */
 enum ResponseType {
   ACK_RESPONSE = 0;
   REJECT_RESPONSE = 1;
@@ -123,12 +277,18 @@ enum ResponseType {
   DETAIL_RESPONSE = 3;
 }
 
-message RejectDetails {
+/*
+ * Perhaps this should be specific to ingestion, query, or annotation?
+ */
+message RejectionDetails { // CKA - Rename suggestion
+//message RejectDetails {
 
   string message = 1;
-  RejectReason rejectReason = 2;
+  Reason cause = 2;  // CKA - Rename suggestion
+//  Reason rejectReason = 2;
 
-  enum RejectReason {
+  enum Reason {  // CKA - Rename suggestion
+//  enum RejectReason {
     INVALID_REQUEST_REASON = 0;
   }
 }
