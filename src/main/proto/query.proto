@@ -22,15 +22,30 @@ option java_package = "com.ospreydcs.dp.grpc.v1.query";
 
 import "common.proto";
 
+
+//
+// ------------------- RPC Interfaces ---------------------------
+//
+
 service DpQueryService {
   rpc queryDataByTime (QueryDataByTimeRequest) returns (stream QueryDataResponse);
 }
+
+
+//
+// ------------------- Query Definition ---------------------------
+//
 
 message QueryDataByTimeRequest {
   Timestamp startTime = 1;
   Timestamp endTime = 2;
   string columnName = 3;
 }
+
+
+//
+// ------------------- Results Definition ---------------------------
+//
 
 message QueryDataResponse {
   ResponseType responseType = 1;

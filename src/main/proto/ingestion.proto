@@ -27,18 +27,18 @@ import "common.proto";
 // ------------------- RPC Interfaces ---------------------------
 //
 
-
 /*
  * The Ingestion Service Interface
  *
  * Defines RPC operations for data provider registration and ingestion.
  *
- * registerProvider - registers data provider and obtain provide UID
+ * register - registers data provider and obtain provide UID
  * streamingIngestion - data ingestion via gRPC streaming
  * unaryIngestion - data ingestion via standard RPC 
  */
 service DpIngestionService {
-  rpc registerProvider (RegistrationRequest) returns (RegistrationResponse);
+  rpc register (RegistrationRequest) returns (RegistrationResponse); // CKA - Rename suggestion (provider is implicit)
+//  rpc registerProvider (RegistrationRequest) returns (RegistrationResponse);
   rpc streamingIngestion (stream IngestionRequest) returns (stream IngestionResponse);
   rpc unaryIngestion (IngestionRequest) returns (IngestionResponse);
 }

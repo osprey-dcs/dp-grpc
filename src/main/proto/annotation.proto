@@ -1,0 +1,175 @@
+//
+// annotation.proto
+//
+// Contains RPC messages and interface specific to the Annotation Service.
+//
+// since: December, 2023
+// version: 1.0.0
+//
+// NOTES:
+// - Carried over naming suggestions from common.proto (CKA)
+//
+// TODO:
+// - Define the entire Annotation Service interface
+//
+
+
+
+syntax = "proto3";
+
+option java_multiple_files = false;  // necessary for name space containment
+option java_package = "com.ospreydcs.dp.grpc.v1.annotation";
+
+import "common.proto";
+
+
+//
+// ------------------- RPC Interfaces ---------------------------
+//
+
+service DpAnnotationService {
+	rpc register(AuthorRegistrationRequest) returns (AuthorRegistrationResponse); 
+	rpc authorQuery(AuthorRequest) returns (AuthorResponse);
+}
+
+
+//
+// ------------------- User Definition ---------------------------
+//
+
+
+/*
+ * Annotation User Record
+ *
+ * Defines an author of archive annotations.
+ */
+message Author {
+	uint32				UID = 1;		// annotator unique ID
+	string				name = 2;		// annotator unique name
+	repeated Attribute	attributes = 3;	// optional user attributes
+	Timestamp			since = 4;		// instant of initial registration and acknowledgment
+	Timestamp			last = 5;		// instant of last activity 
+}
+
+
+//
+// ------------------- Metadata Definition ---------------------------
+//
+
+message DataRange {
+	DataTimeSpec	range = 1;		// time range of block
+	repeated string	sources = 2;	// data source UID(s) 
+}
+
+message DataBucket {
+	uint32		uid = 1;	// bucket UID ?
+	string		name = 2;	// bucket unique name ?
+}
+
+message DataBlock {
+	oneof	source {
+		DataRange	range = 1;
+		DataBucket	bucket = 2;
+	}
+}
+
+message DataSet {
+	repeated DataBlock	blocks = 1;	// 
+}
+
+//
+// ------------------- Annotations Definition ---------------------------
+//
+
+enum Type {
+	UNDEFINED = 0;
+	EMPTY = 1;
+	NOTE = 2;
+	ASSOCIATION = 3;
+	CALCULATION = 4;
+}
+
+message AnnotationMeta {
+	uint64				annotationId = 1;	// UID of annotation
+	Timestamp			creation = 2;		// instant of creation
+	Timestamp			modified = 3;		// instant of last modification
+	repeated uint32		authorIds = 4;		// UID(s) of annotation author(s)
+	Type				type = 5;			// annotation type
+	AnnotationLock		lock = 6;			// optional modification lock
+	repeated Attribute	attributes = 7;		// optional attributes ?
+}
+
+message AnnotationLock {
+	bool				active = 1;			// is lock active (if not anyone can modify)
+	repeated uint32		owners = 2;			// lock owners (author UID)
+}
+
+message Note {
+	AnnotationMeta		meta = 1;
+	string				note = 2;
+	DataSet				dataset = 3;		// applicable data		
+	repeated Attribute	attributes = 4;
+}
+
+message Association {
+	AnnotationMeta		meta = 1;
+	string				note = 2;
+	repeated DataSet	datasets = 3;			
+	repeated Attribute	attributes = 4;
+}
+
+message Calculation {
+}
+
+message Event {
+}
+
+
+//
+// ------------------- Registration Messages ---------------------------
+//
+
+message AuthorRegistrationRequest {
+  string 				name = 1;
+  repeated Attribute 	attributes = 2;
+  Timestamp 			requestTime = 3;
+}
+
+message AuthorRegistrationResponse {  
+
+  ResponseType responseType = 1;
+  Timestamp responseTime = 2;
+
+  oneof details {  
+    AuthorRegistrationDetails registrationDetails = 10;
+    RejectionDetails rejectionDetails = 11;
+  }
+}
+
+message AuthorRegistrationDetails {  
+  uint32 authorId = 1;
+}
+
+
+//
+// ------------------- Author Messages ---------------------------
+//
+
+message AuthorRequest {
+	oneof details {
+		uint32				authorId = 1;
+		string				name = 2;
+	}
+	
+	repeated Attribute	attributes = 3;
+}
+
+message AuthorResponse	{
+	ResponseType	responseType = 1;
+	Timestamp		responseTime = 2;
+	
+	oneof response {
+		Author	author = 10;
+		RejectionDetails	rejectionDetails = 11;
+	}
+}
