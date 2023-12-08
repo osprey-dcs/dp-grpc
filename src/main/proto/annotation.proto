@@ -9,15 +9,25 @@
 // NOTES:
 // - Carried over naming suggestions from common.proto (CKA)
 //
+// - Turns out protoc does not recognize name space containment within Java.  For example, using 
+//   "java_multiple_files = false" and enclosing all messages within class Annotation does not
+//   prevent name collisions of RPC messages (if they have same name but in different services).
+//
+// - Thus, from the above, looks like long identifiers are a good design choice to prevent future
+//   name collisions. 
+//
 // TODO:
 // - Define the entire Annotation Service interface
+// 
+// - Lock down metadata definitions.  These may need to go in common.proto, or create a new
+//   file (e.g., "metadata.proto"). 
 //
 
 
 
 syntax = "proto3";
 
-option java_multiple_files = false;  // necessary for name space containment
+option java_multiple_files = false;  // necessary for name space containment 
 option java_package = "com.ospreydcs.dp.grpc.v1.annotation";
 
 import "common.proto";
@@ -27,33 +37,21 @@ import "common.proto";
 // ------------------- RPC Interfaces ---------------------------
 //
 
-service DpAnnotationService {
-	rpc register(AuthorRegistrationRequest) returns (AuthorRegistrationResponse); 
-	rpc authorQuery(AuthorRequest) returns (AuthorResponse);
-}
-
-
-//
-// ------------------- User Definition ---------------------------
-//
-
-
 /*
- * Annotation User Record
+ * Annotation Service Interface
  *
- * Defines an author of archive annotations.
+ *
  */
-message Author {
-	uint32				UID = 1;		// annotator unique ID
-	string				name = 2;		// annotator unique name
-	repeated Attribute	attributes = 3;	// optional user attributes
-	Timestamp			since = 4;		// instant of initial registration and acknowledgment
-	Timestamp			last = 5;		// instant of last activity 
+service DpAnnotationService {
+	rpc registerAuthor(RegisterAuthorRequest) returns (AuthorRegistrationResponse); 
+	rpc queryAuthor(AuthorRequest) returns (AuthorResponse);
 }
 
 
 //
 // ------------------- Metadata Definition ---------------------------
+//
+// These may belong in the common.proto file.
 //
 
 message DataRange {
@@ -73,9 +71,40 @@ message DataBlock {
 	}
 }
 
+
+/*
+ * Contiguous Range of Data
+ *
+ * NOTES:
+ * - I don't know if we need to explicitly require a "snapshot" or it is a special 
+ *   attribute or property of a DataBlock (which currently does not need to be contiguous). 
+ */
+message Snapshot {
+}
+
 message DataSet {
 	repeated DataBlock	blocks = 1;	// 
 }
+
+
+
+//
+// ------------------- User Definition ---------------------------
+//
+
+/*
+ * Annotation User Record
+ *
+ * Defines an author of archive annotations.
+ */
+message Author {
+	uint32				UID = 1;		// annotator unique ID
+	string				name = 2;		// annotator unique name
+	repeated Attribute	attributes = 3;	// optional user attributes
+	Timestamp			since = 4;		// instant of initial registration and acknowledgment
+	Timestamp			last = 5;		// instant of last activity 
+}
+
 
 //
 // ------------------- Annotations Definition ---------------------------
@@ -129,7 +158,7 @@ message Event {
 // ------------------- Registration Messages ---------------------------
 //
 
-message AuthorRegistrationRequest {
+message RegisterAuthorRequest {
   string 				name = 1;
   repeated Attribute 	attributes = 2;
   Timestamp 			requestTime = 3;

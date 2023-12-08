@@ -57,7 +57,7 @@ service DpIngestionService {
  * UID will be returned in the response.  For an initial registration a new UID is
  * created, stored, and returned.
  */
-message RegistrationRequest {	// CKA - Rename suggestion
+message RegistrationRequest {	// CKA - Rename suggestion - Looks like these won't work (name space collisions)
 //message RegisterProviderRequest {
   string providerName = 1;
   repeated Attribute attributes = 2;
@@ -77,7 +77,7 @@ message RegistrationRequest {	// CKA - Rename suggestion
  * UID will be returned in the response.  For an initial registration a new UID is
  * created, stored, and returned.
  */  
-message RegistrationResponse {  // CKA - Rename suggestion
+message RegistrationResponse {  // CKA - Rename suggestion - Looks like these won't work (name space collisions)
 //message RegisterProviderResponse {
 
   ResponseType responseType = 1;
