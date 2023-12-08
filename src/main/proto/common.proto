@@ -165,8 +165,8 @@ message DataValue {
 //  oneof value_oneof { // CKA - identifier change
   oneof value {
     string stringValue = 1;             // String value
-    double floatValue = 2;              // floating point value
-    uint64 intValue = 3;                // integer value
+    double floatValue = 2;              // floating point value CKA - maybe doubleValue?
+    uint64 intValue = 3;                // integer value		CKA - This should be int32 or int64
     bytes byteArrayValue = 4;           // byte array value
     bool booleanValue = 5;              // boolean value
     Image image = 6;                    // image value
