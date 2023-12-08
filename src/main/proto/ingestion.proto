@@ -112,7 +112,7 @@ message IngestionRequest {
   Timestamp requestTime = 3;
   repeated Attribute attributes = 4;
   EventMetadata eventMetadata = 5;
-  DataTable dataTable = 6;
+  DataFrame dataTable = 6;
 }
 
 message IngestionResponse {

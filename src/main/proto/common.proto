@@ -137,7 +137,8 @@ message DataTimeSpec {
  * NOTES (CKA):
  * - Perhaps this should be moved to ingestion.proto?
  */
-message DataTable {
+message DataFrame {  // CKA - Rename suggestion
+//message DataTable {
   DataTimeSpec dataTimeSpec = 1;
   repeated DataColumn dataColumns = 2;
 }
