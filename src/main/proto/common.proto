@@ -158,10 +158,42 @@ message DataColumn {
 //
 
 /*
- * The unit of heterogeneous data.
+ * Unit of Heterogeneous Scalar Data
+ *
+ * A scalar value supported by both Protocol Buffers and all native languages it builds.
+ * This is a performance addition to the interface.
+ */
+ message ScalarValue {
+ 	oneof value {
+  		string		stringValue = 1;		// character string 
+  		bool		boolValue = 2;			// logical Boolean 
+  		sint32		intValue = 3;			// signed integer value 
+  		sint64		longValue = 4;			// long (signed) integer
+  		float		floatValue = 5;			// 32 byte float value
+  		double		doubleValue = 6;		// 64 byte float value (double)
+  		bytes		bytesValue = 7;			// raw data as byte string
+  	}
+ }
+ 
+/*
+ * Unit of Heterogeneous Data
+ *
+ * The message includes both a data field 'value' and a status field 'status'.  
+ * The 'value' field is the actual data value while the 'status' field represents the 
+ * condition of the value (i.e., typically at acquisition time).  Future versions may include
+ * the status of the value within the archive (e.g., corrupt, truncated, etc.).
+ *
+ * The field 'value' is a union of all possible data types currently supported.  It represents one
+ * unit of heterogeneous data.  Only one data type may be included in the message.
+ *
+ * The 'status' field is structure defined as an enclosed RPC message.  It contains information about
+ * value during acquisition, such as value alarm conditions, acquisition conditions, and any associated
+ * message.  This field is subject to future modification for expanded use case. 
  */
 message DataValue {
 
+/* ------ REPLACED -------- */
+/*
 //  oneof value_oneof { // CKA - identifier change
   oneof value {
     string stringValue = 1;             // String value
@@ -173,8 +205,45 @@ message DataValue {
     Structure structureValue = 7;      // structure value
     Array arrayValue = 8;              // Array value
   }
+*/
+/* ------ REPLACED -------- */
   
-  ValueStatus status = 10;		// CKA - no status in original DataValue
+  /* 
+   * Heterogeneous Data Value
+   * 
+   * CKA NOTES:
+   * Since we're going all in I redefined the entire value union.
+   * 
+   * Includes corrections 
+   *  - ints and longs should have signs.
+   *  - uint32 and uint64 expand to 'int' and 'long' in Java but 'uint32' and 'uint64' in C++
+   *  - Protobuf expands int32 and int64 efficiently for unsigned values but not when negative
+   *  - sint32 and sint64 expand more efficiently than int32 and int64 for negative numbers
+   *  - We can change sint32 -> int32 and sint64 -> int64 if necessary, without affecting language code
+   *
+   *  - Direct support for scalar values could be added with Scalar
+   *  - Support of scalar vectors and/or multi-dimensional arrays can also be added if needed (Vector, NDArray)
+   */
+  oneof value {
+  	string		stringValue = 1;		// character string 
+  	bool		booleanValue = 2;		// logical Boolean 
+  	sint32		intValue = 3;			// signed integer value 
+  	sint64		longValue = 4;			// long (signed) integer
+  	float		floatValue = 5;			// 32 byte float value
+  	double		doubleValue = 6;		// 64 byte float value (double)
+  	bytes		byteArrayValue = 7;		// raw data as byte string
+  	Array		arrayValue = 8;			// heterogeneous array (no dimensional restrictions as of yet)
+  	Structure	structValue = 9;		// general data structure (no width or depth restrictions yet)
+  	Image		imageValue = 10;		// general image value
+  	}	
+  
+  /*
+   * Status of Value
+   * 
+   * Currently represents the condition of the value or associated hardware and software at 
+   * acquisition time.
+   */ 
+  ValueStatus status = 15;		// CKA - no status in original DataValue
 
   /*
    * Status of current data value.
@@ -190,51 +259,132 @@ message DataValue {
     StatusCode statusCode = 2;
     Severity severity = 3;
 
+    /*
+     * Source of an Exceptional Status
+     */
     enum StatusCode {
-      NO_STATUS = 0;
-      DEVICE_STATUS = 1;
-      DRIVER_STATUS = 2;
-      RECORD_STATUS = 3;
-      DB_STATUS = 4;
-      CONF_STATUS = 5;
-      UNDEFINED_STATUS = 6;
-      CLIENT_STATUS = 7;
+      NO_STATUS = 0;		// no status condition
+      DEVICE_STATUS = 1;	// hardware device condition
+      DRIVER_STATUS = 2;	// hardware driver condition
+      RECORD_STATUS = 3;	// device database record condition
+      DB_STATUS = 4; 		// device database condition
+      CONF_STATUS = 5;		// configuration condition
+      UNDEFINED_STATUS = 6;	// unknown or undefined status condition
+      CLIENT_STATUS = 7;	// data provider client condition
     }
 
+    /*
+     * Value Alarm
+     *
+     * Pre-configured alarm conditions triggered by current data value.
+     */
     enum Severity {
-      NO_ALARM = 0;
-      MINOR_ALARM = 1;
-      MAJOR_ALARM = 2;
-      INVALID_ALARM = 3;
-      UNDEFINED_ALARM = 4;
+      NO_ALARM = 0;			// no alarm conditions
+      MINOR_ALARM = 1;		// value has triggered a minor alarm condition
+      MAJOR_ALARM = 2;		// value has triggered a major alarm condition
+      INVALID_ALARM = 3;	// value has triggered an invalid alarm condition
+      UNDEFINED_ALARM = 4;	// unknown or undefined alarm condition present
     }
   }
 }
 
 
 /*
- * General data structure.
- */
-message Structure {
-  repeated Field fields = 1;
+ * One-Dimensional Scalar Array
+ *
+ * Explicitly represents a one-dimesional array of heterogeneous scalar values.  The enforcement of dimensionality
+ * is by convention, the service implementation assumes that all internal values are scalar in nature.  This
+ * condition supports increased performance.     
+ *
+ * NOTES:
+ * - Added direct support for scalar values with Scalar message (CKA)
+ */  
+message Vector {
+	repeated ScalarValue	values = 1;
+//	repeated DataValue		values = 1;
 }
 
+
 /*
- * CKA- Perhaps this should be an enclosed message of Structure?
- * This message will unlikely be used elsewhere.
+ * Multi-Dimensional Scalar Array
+ *
+ * Direct support for multi-dimensional arrays of scalar values.  The message contains two fields:
+ *
+ *  dims - ordered collection of array dimensions {n1, n2, ..., nN} where N is the size of the array
+ *  values - ordered collect of flattened arrays values
+ *
+ * Thus, the size of the 'value' field must be n1*n2*...*nN.
+ *
+ * By convention, the service implementation assumes that array packing is done in REVERSE ORDER of dimensions.
+ * For example, to unpack a 3-dimensional array (N=3) A for transmission the following algorithm holds:
+ *
+ *		int n = 0; 
+ *		int n1=dim[0]; 
+ *		int n2=dim[1]; 
+ *		int n3=dim[2];
+ *		for (i=0; i<n1; i++) {
+ *			for (j=0; j<n2; j++) {
+ *				for (k=0; k<n3; j++) {
+ * 					value[n] = A[i][j][k];
+ *					n++;
+ *				}
+ *			}
+ *		}
+ *
+ * NOTES (CKA):
+ * - We can change array packing order if necessary (e.g., FORWARD order of dimensions).
+ * - We can restrict the number of dimensions for practicality (explicitly or implicitly)
  */
-message Field {
-  string name = 1;
-  DataValue value = 2;
-}
+ message NDArray {
+ 	repeated uint32			dims = 1;		// vector of array dimensions
+ 	repeated ScalarValue	values = 2;		// vector of unpacked array values
+ }
 
 
 /*
- * Array data structure.
+ * General Array
+ * 
+ * Although the current Array message is represented as a vector of values, the Array message supports 
+ * array nesting.  Thus, multi-dimensional arrays are currently supported in this format (i.e., Array's of
+ * Array's).  
+ *
+ * Note also that arrays are general and may include other complex data structures as elements.  For example,
+ * an array of data structures, an array of vectors, or an array of images.
+ *
+ * Currently array dimensionality is indefinite however future restrictions may be required for practical
+ * service implementation.
  */
 message Array {
   repeated DataValue dataValues = 1;
 }
+
+
+/*
+ * General Data Structure.
+ *
+ * Each level of a general data structure may have an indefinite number of fields consisting
+ * of (name, value) pairs.  There may be practical restrictions on the number of fields within
+ * service implementations (as of yet unreported).
+ *
+ * Note that the Structure message supported nested structure, and thus, complex data structures
+ * can be represented.  The 'value' field within a (name, value) pair may contain another Structure 
+ * message supporting multi-level structuring.  The depth of the structuring is currently indefinite
+ * but may have practical restrictions within service implementation (yet unreported).
+ */
+message Structure {
+  repeated Field fields = 1;
+
+  /*
+   * CKA- Perhaps this should be an enclosed message of Structure?
+   * This message will unlikely be used elsewhere.
+   */
+  message Field {
+    string name = 1;
+    DataValue value = 2;
+  }
+
+}
+
 
 /*
  * An image file.
@@ -269,7 +419,10 @@ message Image {
 //
 
 /*
- * Perhaps this should be specific to ingestion, query, or annotation?
+ * NOTES:
+ *  - Perhaps this should be specific to ingestion, query, or annotation?
+ *
+ *  - This does appear to be common in ingestion.proto, query.proto, and annotation.proto
  */
 enum ResponseType {
   ACK_RESPONSE = 0;
