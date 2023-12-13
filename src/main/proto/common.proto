@@ -161,7 +161,10 @@ message DataColumn {
  * Unit of Heterogeneous Scalar Data
  *
  * A scalar value supported by both Protocol Buffers and all native languages it builds.
- * This is a performance addition to the interface.
+ * This type should be built into native language primitive types, or "nearly primitive".
+ *
+ * NOTES:
+ * - This is a performance addition to the interface for support of machine learning. 
  */
  message ScalarValue {
  	oneof value {
@@ -174,6 +177,29 @@ message DataColumn {
   		bytes		bytesValue = 7;			// raw data as byte string
   	}
  }
+ 
+ 
+ /*
+  * Unit of Numeric Scalar Data
+  *
+  * A numeric (scalar) value translates to a primitive type in the native language, specifically,
+  * a primitive type representing a numeric value (one supporting algebraic operations).
+  *
+  * NOTES:
+  * - This type is suggested for data science support.  Specifically, types that can be directly
+  *   translated into a vector for machine learning.
+  */
+message NumericValue {
+
+ 	oneof value {
+  		bool		boolValue = 1;			// logical Boolean 
+  		sint32		intValue = 2;			// signed integer value 
+  		sint64		longValue = 3;			// long (signed) integer
+  		float		floatValue = 4;			// 32 byte float value
+  		double		doubleValue = 5;		// 64 byte float value (double)
+  	}
+}
+
  
 /*
  * Unit of Heterogeneous Data
@@ -300,6 +326,7 @@ message DataValue {
  * - Added direct support for scalar values with Scalar message (CKA)
  */  
 message Vector {
+//	repeated NumericValue	values = 1;
 	repeated ScalarValue	values = 1;
 //	repeated DataValue		values = 1;
 }
