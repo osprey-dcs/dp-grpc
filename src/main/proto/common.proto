@@ -104,7 +104,7 @@ message SamplingInterval {
  *  - TimestampList - explicit set of ordered time instants 
  *
  */
-message DataTimeSpec {
+message DataTimestamps {
   oneof value_oneof {
     SamplingInterval interval = 1;
     TimestampList timestampList = 2;
@@ -139,7 +139,7 @@ message DataTimeSpec {
  */
 message DataFrame {  // CKA - Rename suggestion
 //message DataTable {
-  DataTimeSpec dataTimeSpec = 1;
+  DataTimestamps dataTimeSpec = 1;
   repeated DataColumn dataColumns = 2;
 }
 
