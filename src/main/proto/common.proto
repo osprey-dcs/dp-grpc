@@ -83,11 +83,21 @@ message TimestampList {
  *
  * where N = count.
  */
-message SamplingInterval {
+//message SamplingInterval {	// CKA: This isn't really an interval, i.e. [t1, t1]   
+message UniformSamplingSpec {	// CKA: Maybe this should be called "UniformSampling" or "UniformSamplingSpec" - more precise  
   Timestamp startTime = 1;
   uint64 periodNanos = 2;
   uint32 count = 3;
 }
+// CKA: The idea of a "uniform-sampling interval" would look like this 
+// message {
+//	  Timestamp startTime = 1;
+//    Timestamp stopTime = 2;
+//    uint32 	count = 3;
+// }
+//
+// Which is attractive because it has the start time and stop time - may make lookups and table construction 
+// easier (?)
 
 //message FixedIntervalTimestampSpec {
 //  Timestamp startTime = 1;
@@ -100,13 +110,13 @@ message SamplingInterval {
  *
  * The timestamps are identified as either of the following:
  * 
- *  - SamplingInterval - time instants required for uniform sampling
+ *  - UniformSamplingSpec - time instants required for uniform sampling
  *  - TimestampList - explicit set of ordered time instants 
  *
  */
 message DataTimestamps {
   oneof value_oneof {
-    SamplingInterval interval = 1;
+    UniformSamplingSpec interval = 1;
     TimestampList timestampList = 2;
   }
 }
