@@ -20,29 +20,13 @@ if (response.hasExceptionalResult()) {
 // safe to read the success payload
 ```
 
-**Empty query results — check per method.**  The intended convention, stated in the
-[main README](../../README.md#empty-query-results), is that a query matching nothing returns its
-normal success payload with an empty list rather than an `ExceptionalResult`.  The newer metadata
-APIs say so explicitly in the proto: `queryPvMetadata`, `queryConfigurations`,
-`queryConfigurationActivations`, and `getActiveConfigurations` all document an empty list as the
-non-exceptional result.
+An **empty query result is not an error**.  A query that matches nothing returns its normal
+success payload with an empty list, not an `ExceptionalResult`.  Reserve exceptional handling for
+rejected requests and server errors.
 
-The older query methods document the opposite.  These seven list "no data matching query" among
-their `ExceptionalResult` cases:
-
-| Method | Proto |
-|---|---|
-| `queryData`, `queryDataStream`, `queryDataBidiStream` | `query.proto` |
-| `queryTable`, `queryPvStats` | `query.proto` |
-| `queryDataSets`, `queryAnnotations` | `annotation.proto` |
-
-It is not clear from the protos alone whether those comments describe current server behavior or
-predate the convention — they may simply be stale.  Until that is confirmed against the server
-implementation, **handle both outcomes** when calling any of the seven: treat an
-`ExceptionalResult` on one of them as possibly meaning "no matches" rather than a hard failure,
-and do not assume an empty list will arrive instead.
-
-For every other method, the empty-list convention holds.
+This holds across every query method in the API.  Some older proto comments in `query.proto` and
+`annotation.proto` list "no data matching query" among their exceptional-result cases; those
+comments predate the current behavior and are stale.
 
 Every response also carries `responseTime`, the time the server generated the response.
 
