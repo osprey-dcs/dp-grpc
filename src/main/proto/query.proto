@@ -634,11 +634,12 @@ message QueryDataResponse {
    * (including provenance, tags, and/or attributes) was supplied for the column at ingestion time, it is returned
    * in the embedded column message within the DataBucket.
    *
-   * By default, each DataBucket contains a regular DataColumn object with the vector of data for the bucket.
-   * if the useSerializedDataColumns flag is set in the QueryDataRequest's QuerySpec, each DataBucket in the result
-   * contains a SerializedDataColumn that contains a byte data representation of the corresponding DataColumn object.
-   * Clients seeking maximum query performance should use SerializedDataColumns in the query result in order to avoid
-   * extra serialization operations performed by the gRPC communication framework.
+   * Each DataBucket contains a regular DataColumn object with the vector of data for the bucket.  The V1 query
+   * methods do not offer a serialized-column result option; QueryDataRequest's QuerySpec specifies only beginTime,
+   * endTime, and pvNames.  Clients seeking maximum query performance should use the V2 query methods and set
+   * ResultRepresentation.useSerializedColumns, which returns SerializedDataColumn objects containing a byte data
+   * representation of the corresponding columns, avoiding extra serialization operations performed by the gRPC
+   * communication framework.
    */
   message QueryData {
     repeated dp.service.common.DataBucket dataBuckets = 1;

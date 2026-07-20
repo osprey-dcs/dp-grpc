@@ -666,7 +666,7 @@ message QueryAnnotationsRequest {
     }
 
     /*
-     * Criterion used to query annotations by text contained in the name, comment, and eventMetadata description fields.
+     * Criterion used to query annotations by text contained in the name and comment fields.
      */
     message TextCriterion {
       string text = 1;
