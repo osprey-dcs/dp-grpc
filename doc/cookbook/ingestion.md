@@ -13,6 +13,24 @@ Reference documentation: [Provider API](../../README.md#provider-api),
 [Ingestion Request Status API](../../README.md#ingestion-request-status-api).
 Shared response, criteria, and time conventions are in [conventions.md](conventions.md).
 
+### Imports used by the examples
+
+Snippets name generated classes without qualification, for readability.  Two of them are nested
+inside their response message and need the full path:
+
+```java
+import com.ospreydcs.dp.grpc.v1.ingestion.IngestDataRequest;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest;
+import com.ospreydcs.dp.grpc.v1.common.DataFrame;
+import com.ospreydcs.dp.grpc.v1.common.DataTimestamps;
+import com.ospreydcs.dp.grpc.v1.common.SamplingClock;
+import com.ospreydcs.dp.grpc.v1.common.Timestamp;
+
+// nested inside their enclosing response/request messages
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusResponse.RequestStatusResult.RequestStatus;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest.QueryRequestStatusCriterion;
+```
+
 ## Contents
 
 - [Model](#model) — the data frame, the time axis, and the async contract
@@ -288,7 +306,7 @@ traffic at all.  You send a stream of `IngestDataRequest` and receive exactly **
 ```java
 StreamObserver<IngestDataRequest> requests = stub.ingestDataStream(responseObserver);
 
-for (SamplingWindow window : windows) {
+for (YourBatch window : windows) {          // YourBatch is your own type, not an MLDP message
     String requestId = nextRequestId();
     sentRequestIds.add(requestId);          // record every id you send
     requests.onNext(IngestDataRequest.newBuilder()

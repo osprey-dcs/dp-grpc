@@ -20,6 +20,24 @@ follow-on status check, see
 
 Shared response-checking and criteria rules live in [conventions.md](conventions.md).
 
+### Imports used by the examples
+
+Snippets name generated classes without qualification, for readability.  `ProviderInfo` is nested
+two levels inside the query response:
+
+```java
+import com.ospreydcs.dp.grpc.v1.ingestion.RegisterProviderRequest;
+import com.ospreydcs.dp.grpc.v1.query.QueryProvidersRequest;
+import com.ospreydcs.dp.grpc.v1.query.QueryProviderStatsRequest;
+import com.ospreydcs.dp.grpc.v1.common.Attribute;
+
+// nested inside their enclosing response messages
+import com.ospreydcs.dp.grpc.v1.query.QueryProvidersResponse.ProvidersResult.ProviderInfo;
+import com.ospreydcs.dp.grpc.v1.query.QueryProvidersRequest.Criterion.TextCriterion;
+import com.ospreydcs.dp.grpc.v1.query.QueryProvidersRequest.Criterion.TagsCriterion;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusResponse.RequestStatusResult.RequestStatus;
+```
+
 ## Contents
 
 - [Registering on startup and ingesting](#registering-on-startup-and-ingesting) — the mandatory

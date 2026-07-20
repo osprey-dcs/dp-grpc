@@ -35,6 +35,9 @@ import com.ospreydcs.dp.grpc.v1.common.DataValue;
 import com.ospreydcs.dp.grpc.v1.common.DataTimestamps;
 import com.ospreydcs.dp.grpc.v1.common.SamplingClock;
 import com.ospreydcs.dp.grpc.v1.common.Timestamp;
+
+// read-side Annotation is nested inside the query response
+import com.ospreydcs.dp.grpc.v1.annotation.QueryAnnotationsResponse.AnnotationsResult.Annotation;
 ```
 
 Two things worth noting: `DataBlock` is a top-level message in `annotation.proto`, not nested

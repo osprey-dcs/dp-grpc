@@ -191,7 +191,7 @@ scanning everything:
 ```java
 QueryConfigurationActivationsRequest.newBuilder()
     .addCriteria(criterion().setConfigurationNameCriterion(names("linac-rf-config-A")))
-    .addCriteria(criterion().setTimeRangeCriterion(range(ts(now - 24h), ts(now))))
+    .addCriteria(criterion().setTimeRangeCriterion(range(ts(oneDayAgo), ts(now))))
     .setLimit(100)
     .build();
 ```
