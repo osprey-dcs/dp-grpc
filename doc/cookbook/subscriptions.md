@@ -31,7 +31,8 @@ stubs do not.
 
 Both follow the same four-phase shape:
 
-1. **Register.**  The client sends **exactly one** request carrying a `NewSubscription` payload.
+1. **Register.**  The client sends a request carrying a `NewSubscription` payload.  For
+   `subscribeData` this must be exactly one — see below.
 2. **Acknowledge.**  The service replies with a *single* response carrying either an
    `ExceptionalResult` (rejected) or an `AckResult` (registered).
 3. **Stream.**  The service sends payload messages — `SubscribeDataResult` for `subscribeData`,
@@ -41,9 +42,14 @@ Both follow the same four-phase shape:
 
 Two properties of this shape are easy to get wrong and worth stating up front.
 
-**Exactly one `NewSubscription`.**  The `subscribeData` proto is explicit: if the client sends a
-second `NewSubscription` on an already-registered stream, the service rejects it and closes the
-response stream.  To change the PV set, cancel and open a new stream.
+**Exactly one `NewSubscription` — documented for `subscribeData` only.**  The `subscribeData`
+proto is explicit: if the client sends a second `NewSubscription` on an already-registered stream,
+the service rejects it and closes the response stream.  To change the PV set, cancel and open a
+new stream.
+
+`ingestion_stream.proto` states no equivalent rule for `subscribeDataEvent`, so its behavior on a
+second `NewSubscription` is unspecified.  Treat the one-subscription-per-stream discipline as the
+safe default for both, but do not rely on `subscribeDataEvent` rejecting a second registration.
 
 **Subscriptions are forward-looking only.**  `subscribeData` delivers data received by the
 Ingestion Service *after* the subscription is created.  There is no replay and no backfill; data
