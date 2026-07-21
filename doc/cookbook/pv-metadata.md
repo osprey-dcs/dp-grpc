@@ -12,6 +12,28 @@ Reference documentation: [PV Metadata API](../../README.md#pv-metadata-api).  Sh
 pagination, criteria, and save-semantics rules live in [conventions.md](conventions.md) and are
 not repeated here.
 
+### Imports used by the examples
+
+Snippets name generated classes without qualification, for readability.  The query criterion
+types nest two levels inside the request:
+
+```java
+import com.ospreydcs.dp.grpc.v1.annotation.SavePvMetadataRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.QueryPvMetadataRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.GetPvMetadataRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.DeletePvMetadataRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.BulkSavePvMetadataRequest;
+import com.ospreydcs.dp.grpc.v1.common.PvMetadata;
+import com.ospreydcs.dp.grpc.v1.common.Attribute;
+
+// nested inside the request message
+import com.ospreydcs.dp.grpc.v1.annotation.QueryPvMetadataRequest.QueryPvMetadataCriterion;
+import com.ospreydcs.dp.grpc.v1.annotation.QueryPvMetadataRequest.QueryPvMetadataCriterion.PvNameCriterion;
+import com.ospreydcs.dp.grpc.v1.annotation.QueryPvMetadataRequest.QueryPvMetadataCriterion.TagsCriterion;
+import com.ospreydcs.dp.grpc.v1.annotation.QueryPvMetadataRequest.QueryPvMetadataCriterion.AttributesCriterion;
+import com.ospreydcs.dp.grpc.v1.annotation.QueryPvMetadataRequest.QueryPvMetadataCriterion.AliasesCriterion;
+```
+
 ## Contents
 
 - [Model](#model)

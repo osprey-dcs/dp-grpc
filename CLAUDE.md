@@ -17,7 +17,7 @@ src/main/proto/       # All proto files (the primary artifact of this repo)
 doc/cookbook/         # Task-oriented worked examples (see "Documentation" below)
 doc/                  # Images and proposed/design proto files
 .dev/plan/            # Planning documents (gitignored)
-.dev/tools/           # Dev scripts, e.g. cookbook snippet checker (gitignored)
+tools/                # Dev scripts (cookbook snippet checker)
 pom.xml               # Maven build; runs protoc via protobuf-maven-plugin
 ```
 
@@ -233,25 +233,30 @@ Conventions:
 Two independent checks — they catch different things, so run both:
 
 ```bash
-# 1. names, shapes, and behavior claims: check against the protos and, where
-#    the nesting is not obvious, against target/generated-sources
-mvn compile
-
-# 2. snippets: extract every ```java block and compile it against the stubs
-mvn dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt
-python3 .dev/tools/check-cookbook-snippets.py /tmp/snips
-javac -nowarn -Xmaxerrs 10000 -d /tmp/out \
-  -cp "target/classes:$(cat /tmp/cp.txt)" /tmp/snips/Snip*.java
+mvn compile                                   # names and shapes, via the protos
+python3 tools/check-cookbook-snippets.py      # every ```java block, via javac
 ```
 
-`.dev/tools/check-cookbook-snippets.py` is **gitignored**, so it is not in a fresh clone. It
-wraps each extracted block in a class with wildcard imports, that doc's own imports block, and
-stubs for the shorthand helpers recipes use (`ts(...)`, `criterion()`, `now`). If it is missing,
-rewriting it is roughly 60 lines. Consider tracking it if this becomes a routine check.
+`tools/check-cookbook-snippets.py` extracts every ```java block in `doc/cookbook/`, wraps each
+in a class with wildcard imports plus that document's own imports block, and compiles the lot
+against `target/classes`. It exits non-zero on any unresolved **type** or syntax error, so it
+works as a pre-commit or CI gate. Run `mvn compile` first. `--keep DIR` retains the generated
+sources for inspection.
 
-The snippet check found four defects that a careful name-level review had missed, including
-invalid Java (`now - 24h`) and a type that exists nowhere in the protos. Expect unresolved
-*variables* (`response`, `stub`) — snippets are fragments. Unresolved **types** are real bugs.
+Two things it deliberately tolerates:
+
+- **Unresolved lowerCamelCase names** (`response`, `stub`) — snippets are fragments, so locals
+  are expected to be undeclared. Note that javac reports an unknown *type* used as an expression
+  receiver as `symbol: variable Foo`, so the filter keys on capitalization: `Foo` is a type
+  reference and a real error, `foo` is a fragment's local.
+- **Snippets marked `// cookbook:partial <reason>`** — a placeholder type standing in for
+  something the caller supplies, or an interface with methods elided. Keep these rare, and
+  always make the elision visible to the reader as well.
+
+The snippet check is not redundant with careful review: it found four defects a name-level
+verification pass had missed, including invalid Java (`now - 24h`) and a type that exists
+nowhere in the protos. It also flags recipes that reference nested generated classes without
+giving an imports block, which is the most common way a snippet becomes uncompilable.
 
 ### Proto comments drift
 

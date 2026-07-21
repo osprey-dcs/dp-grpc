@@ -36,6 +36,11 @@ import com.ospreydcs.dp.grpc.v1.query.QueryProvidersResponse.ProvidersResult.Pro
 import com.ospreydcs.dp.grpc.v1.query.QueryProvidersRequest.Criterion.TextCriterion;
 import com.ospreydcs.dp.grpc.v1.query.QueryProvidersRequest.Criterion.TagsCriterion;
 import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusResponse.RequestStatusResult.RequestStatus;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest.QueryRequestStatusCriterion;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest.QueryRequestStatusCriterion.ProviderIdCriterion;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest.QueryRequestStatusCriterion.StatusCriterion;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest.QueryRequestStatusCriterion.TimeRangeCriterion;
+import com.ospreydcs.dp.grpc.v1.query.QueryProvidersRequest.Criterion.AttributesCriterion;
 ```
 
 ## Contents

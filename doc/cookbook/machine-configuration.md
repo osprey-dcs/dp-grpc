@@ -9,6 +9,27 @@ Annotation Service.
 Reference documentation: [Machine Configuration API](../../README.md#machine-configuration-api)
 and [Configuration Activation API](../../README.md#configuration-activation-api).
 
+### Imports used by the examples
+
+Snippets name generated classes without qualification, for readability.  The activation query
+criterion types nest two levels inside the request:
+
+```java
+import com.ospreydcs.dp.grpc.v1.annotation.SaveConfigurationRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.SaveConfigurationActivationRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.QueryConfigurationActivationsRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.GetConfigurationActivationRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.GetActiveConfigurationsRequest;
+import com.ospreydcs.dp.grpc.v1.common.ConfigurationActivation;
+import com.ospreydcs.dp.grpc.v1.common.Timestamp;
+
+// nested inside the request message
+import com.ospreydcs.dp.grpc.v1.annotation.QueryConfigurationActivationsRequest.QueryConfigurationActivationsCriterion;
+import com.ospreydcs.dp.grpc.v1.annotation.QueryConfigurationActivationsRequest.QueryConfigurationActivationsCriterion.ConfigurationNameCriterion;
+import com.ospreydcs.dp.grpc.v1.annotation.QueryConfigurationActivationsRequest.QueryConfigurationActivationsCriterion.TimestampCriterion;
+import com.ospreydcs.dp.grpc.v1.annotation.QueryConfigurationActivationsRequest.QueryConfigurationActivationsCriterion.TimeRangeCriterion;
+```
+
 ## Contents
 
 - [Recording a configuration change in real time](#recording-a-configuration-change-in-real-time)

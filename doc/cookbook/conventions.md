@@ -38,6 +38,7 @@ Query methods that can return many records use a uniform paging scheme:
 - Result: `string nextPageToken` — non-empty when more pages are available
 
 ```java
+// cookbook:partial Foo is a stand-in for any entity type
 String pageToken = "";
 do {
     var request = QueryFooRequest.newBuilder()
@@ -80,6 +81,7 @@ by what the request contains; omitted fields are cleared, not preserved.
 When updating an existing record, read it first and carry forward every field you intend to keep:
 
 ```java
+// cookbook:partial Foo is a stand-in for any entity type
 // WRONG -- erases description, tags, and attributes
 SaveFooRequest.newBuilder()
     .setFooId(existing.getFooId())

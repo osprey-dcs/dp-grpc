@@ -29,6 +29,10 @@ import com.ospreydcs.dp.grpc.v1.common.Timestamp;
 // nested inside their enclosing response/request messages
 import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusResponse.RequestStatusResult.RequestStatus;
 import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest.QueryRequestStatusCriterion;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest.QueryRequestStatusCriterion.ProviderIdCriterion;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest.QueryRequestStatusCriterion.RequestIdCriterion;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest.QueryRequestStatusCriterion.StatusCriterion;
+import com.ospreydcs.dp.grpc.v1.ingestion.QueryRequestStatusRequest.QueryRequestStatusCriterion.TimeRangeCriterion;
 ```
 
 ## Contents
@@ -304,9 +308,10 @@ traffic at all.  You send a stream of `IngestDataRequest` and receive exactly **
 `IngestDataStreamResponse`, delivered when you half-close the stream (or on stream error).
 
 ```java
+// cookbook:partial YourBatch is a caller-supplied type, not an MLDP message
 StreamObserver<IngestDataRequest> requests = stub.ingestDataStream(responseObserver);
 
-for (YourBatch window : windows) {          // YourBatch is your own type, not an MLDP message
+for (YourBatch window : windows) {
     String requestId = nextRequestId();
     sentRequestIds.add(requestId);          // record every id you send
     requests.onNext(IngestDataRequest.newBuilder()
@@ -356,6 +361,7 @@ reference method whose semantics the other two ingestion methods inherit.
 Correlate responses back to requests using the echoed `providerId` + `clientRequestId`:
 
 ```java
+// cookbook:partial onError/onCompleted elided for brevity
 Map<String, IngestDataRequest> inFlight = new ConcurrentHashMap<>();
 
 StreamObserver<IngestDataResponse> responses = new StreamObserver<>() {
