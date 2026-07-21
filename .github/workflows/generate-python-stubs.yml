@@ -8,20 +8,23 @@ on:
     inputs:
       target_repo:
         description: "Target dp-python-lib repo (owner/name)"
-        required: true
-        default: "craigmcchesney/dp-python-lib"
+        required: false
+        default: "osprey-dcs/dp-python-lib"
       target_branch:
         description: "Target branch in dp-python-lib"
-        required: true
+        required: false
         default: "main"
-      dev_sync:
-        description: "Development sync (skip version bump)"
-        type: boolean
-        default: true
 
 jobs:
   generate-python-stubs:
     runs-on: ubuntu-latest
+
+    # inputs.* are only populated on workflow_dispatch; on a rel-* tag push they
+    # are empty, so every reference needs a fallback.  Without one, actions/checkout
+    # silently falls back to checking out this repo instead of dp-python-lib.
+    env:
+      TARGET_REPO: ${{ inputs.target_repo || 'osprey-dcs/dp-python-lib' }}
+      TARGET_BRANCH: ${{ inputs.target_branch || 'main' }}
 
     steps:
       # -----------------------------
@@ -87,8 +90,8 @@ jobs:
       - name: Checkout dp-python-lib
         uses: actions/checkout@v4
         with:
-          repository: ${{ inputs.target_repo }}
-          ref: ${{ inputs.target_branch }}
+          repository: ${{ env.TARGET_REPO }}
+          ref: ${{ env.TARGET_BRANCH }}
           token: ${{ secrets.DP_BOT_TOKEN }}
           path: dp-python-lib
 
@@ -150,11 +153,22 @@ jobs:
       - name: Create pull request
         env:
           GH_TOKEN: ${{ secrets.DP_BOT_TOKEN }}
+          IS_RELEASE: ${{ steps.mode.outputs.release }}
+          SYNC_VERSION: ${{ steps.mode.outputs.version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           cd dp-python-lib
+          BODY=$(cat <<BODY_EOF
+          Automated sync of generated Python gRPC stubs from dp-grpc.
+
+          Release: ${IS_RELEASE}
+          Version: ${SYNC_VERSION:-dev}
+          Source run: ${RUN_URL}
+          BODY_EOF
+          )
           gh pr create \
             --title "Sync Python gRPC stubs from dp-grpc" \
-            --body "Automated sync of generated Python gRPC stubs from dp-grpc.\n\nRelease: ${{ steps.mode.outputs.release }}\nVersion: ${{ steps.mode.outputs.version || 'dev' }}" \
-            --base "${{ inputs.target_branch }}" \
+            --body "$BODY" \
+            --base "${{ env.TARGET_BRANCH }}" \
             --head "$(git branch --show-current)" || echo "PR already exists"
 
