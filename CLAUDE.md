@@ -14,8 +14,10 @@ This repo defines the gRPC API for the **Machine Learning Data Platform (MLDP)**
 
 ```
 src/main/proto/       # All proto files (the primary artifact of this repo)
+doc/cookbook/         # Task-oriented worked examples (see "Documentation" below)
 doc/                  # Images and proposed/design proto files
 .dev/plan/            # Planning documents (gitignored)
+tools/                # Dev scripts (cookbook snippet checker)
 pom.xml               # Maven build; runs protoc via protobuf-maven-plugin
 ```
 
@@ -73,6 +75,8 @@ Ingestion responses only confirm acceptance/rejection. Actual persistence is asy
 
 ### Response Pattern
 All response messages use a `oneof result` with either `ExceptionalResult` (rejection/error) or a method-specific success payload.
+
+A query matching no data returns an **empty result, not an `ExceptionalResult`** — verified against the dp-service dispatchers. Reserve exceptional results for rejected requests and server errors. Some proto comments contradicted this and were corrected; see "Proto comments drift" below.
 
 ## Services
 
@@ -182,6 +186,88 @@ rpc patchFoo(PatchFooRequest) returns (PatchFooResponse);
 
 The service handler must return `RESULT_STATUS_ERROR` with a "not implemented" message
 for deferred methods.
+
+## Documentation
+
+Three distinct documents, with different jobs. Keep them in their lanes:
+
+| Where | Genre | Contains |
+|---|---|---|
+| `README.md` | Reference | Every method, request, and response, field by field |
+| `doc/cookbook/` | Guide | Task-oriented recipes spanning multiple calls |
+| Proto comments | Contract | Per-message and per-method semantics |
+
+### Cookbook (`doc/cookbook/`)
+
+One recipe per API area, plus `conventions.md` for patterns shared by every method
+(`oneof result` handling, paging, criteria AND/OR rules, full-replace `save*`, half-open
+time ranges). Recipes **link to `conventions.md` rather than repeating it**.
+
+Recipe structure, established by `machine-configuration.md`:
+
+1. H1 title, then a one-or-two sentence statement of what it covers
+2. A `> **Verified against:** dp-grpc rel-X.Y.Z` blockquote — state the release the recipe
+   was checked against, and call out any method that does not exist in that release
+3. Reference links to the relevant `README.md` anchors and to `conventions.md`
+4. An imports block, where the recipe uses deeply nested generated classes
+5. `## Contents`, then `## Model` explaining domain concepts before any code
+6. Task-oriented `##` sections with numbered steps
+7. `## Also worth knowing` for the leftovers
+
+Conventions:
+
+- **Java only.** Python users are directed to
+  [dp-python-lib](https://github.com/osprey-dcs/dp-python-lib); client-library usage is
+  documented there, not here. `python-stubs.md` covers only stub generation, which is this
+  repo's business.
+- **Class names are unqualified inline** for readability. Recipes using nested types carry an
+  imports block up front giving the full resolution path.
+- **Say when something is unspecified.** Where the protos do not state a behavior, write that
+  rather than guessing. Several recipes do this today and those spots are candidates for
+  replacing with observed server behavior.
+- When adding a recipe, add it to both `doc/cookbook/README.md` and the `## API Cookbook`
+  table in `README.md`, and add a pointer from the relevant entity API section.
+
+### Verifying documentation
+
+Two independent checks — they catch different things, so run both:
+
+```bash
+mvn compile                                   # names and shapes, via the protos
+python3 tools/check-cookbook-snippets.py      # every ```java block, via javac
+```
+
+`tools/check-cookbook-snippets.py` extracts every ```java block in `doc/cookbook/`, wraps each
+in a class with wildcard imports plus that document's own imports block, and compiles the lot
+against `target/classes`. It exits non-zero on any unresolved **type** or syntax error, so it
+works as a pre-commit or CI gate. Run `mvn compile` first. `--keep DIR` retains the generated
+sources for inspection.
+
+Two things it deliberately tolerates:
+
+- **Unresolved lowerCamelCase names** (`response`, `stub`) — snippets are fragments, so locals
+  are expected to be undeclared. Note that javac reports an unknown *type* used as an expression
+  receiver as `symbol: variable Foo`, so the filter keys on capitalization: `Foo` is a type
+  reference and a real error, `foo` is a fragment's local.
+- **Snippets marked `// cookbook:partial <reason>`** — a placeholder type standing in for
+  something the caller supplies, or an interface with methods elided. Keep these rare, and
+  always make the elision visible to the reader as well.
+
+The snippet check is not redundant with careful review: it found four defects a name-level
+verification pass had missed, including invalid Java (`now - 24h`) and a type that exists
+nowhere in the protos. It also flags recipes that reference nested generated classes without
+giving an imports block, which is the most common way a snippet becomes uncompilable.
+
+### Proto comments drift
+
+Writing recipes is unusually effective at surfacing stale proto comments — nine were found and
+fixed this way. When a doc and a proto comment disagree, **check `dp-service` before assuming
+the comment is right**; it is the authority on actual behavior. Two cases seen so far:
+
+- Comments referencing removed fields (`eventMetadata`) or fields that were never added
+  (`useSerializedDataColumns` on V1 `QuerySpec`)
+- Comments describing superseded behavior — seven query methods listed "no data matching
+  query" as an `ExceptionalResult` case, but the dispatchers return an empty result
 
 ## Build
 

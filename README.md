@@ -10,6 +10,7 @@ This document includes the following information:
 - [Service-centric API summary](#service-api-summary)
 - [Entity-centric API summary](#entity-api-summary)
 - [API use cases and patterns](#api-use-cases-and-patterns)
+- [API cookbook: worked examples](#api-cookbook)
 - [Entity API details](#entity-api-details)
   - [Provider API](#provider-api)
   - [PV Time-Series Data API](#pv-time-series-data-api)
@@ -129,6 +130,28 @@ The Data Platform API is intended to support the following use cases and pattern
 - Export Data including both Data Sets and Calculations.
 
 
+## API Cookbook
+
+The sections below describe each API method, request, and response in detail.  For task-oriented
+worked examples that span multiple calls — "how do I actually do X?" — see the
+**[API Cookbook](doc/cookbook/README.md)**.
+
+| Recipe | Covers |
+|---|---|
+| [API conventions](doc/cookbook/conventions.md) | Patterns shared by every method: `oneof result` handling, paging, criteria AND/OR rules, full-replace `save*`, half-open time ranges |
+| [Provider registration](doc/cookbook/provider-registration.md) | Registering before ingesting, re-registering on startup, finding providers, reading archive statistics |
+| [Ingesting PV data](doc/cookbook/ingestion.md) | The three ingestion methods, building a `DataFrame`, choosing a column type, and checking async request status |
+| [Subscriptions](doc/cookbook/subscriptions.md) | Tailing live PVs, triggering on a PV condition, capturing a window around a trigger |
+| [Querying archived data](doc/cookbook/query.md) | Query API V2 — buckets vs. samples, `QuerySpec`, paging, and migrating a V1 client |
+| [PV metadata](doc/cookbook/pv-metadata.md) | Cataloguing PVs, discovery by tag/attribute/name, alias resolution, driving queries from metadata |
+| [Machine configuration](doc/cookbook/machine-configuration.md) | Creating a configuration, recording activations in real time, closing an open activation, listing activation history |
+| [Data sets, annotations, export](doc/cookbook/datasets-and-annotations.md) | Defining DataSets, annotating them, publishing Calculations, exporting to HDF5/CSV/XLSX |
+| [Generating and importing Python stubs](doc/cookbook/python-stubs.md) | How Python stubs are produced from these protos and published via dp-python-lib |
+
+Recipes use Java, the language whose stubs this repo builds.  Python users should start with
+[dp-python-lib](https://github.com/craigmcchesney/dp-python-lib), a client library wrapping this
+API.
+
 
 ---
 # Entity API Details
@@ -136,6 +159,8 @@ The Data Platform API is intended to support the following use cases and pattern
 ## Provider API
 
 A data Provider is an infrastructure component that uses the Data Platform Ingestion Service API to upload data to the archive.  Before sending ingestion requests with data, the Provider must be registered with the Ingestion Service.  Query methods are provided to retrieve details about registered Providers and metadata about the data they have uploaded.
+
+See the [Provider registration cookbook](doc/cookbook/provider-registration.md) for worked examples of registering on startup, finding providers, and reading a provider's archive statistics.
 
 ### Provider Registration Methods
 <table>
@@ -224,6 +249,8 @@ The response message payload is either an ExceptionalResult indicating rejection
 ## PV Time-Series Data API
 
 This section describes various concepts helpful for understanding the handling of PV Time-Series data in the Data Platform API, followed by an overview of the API methods for PV data ingestion, query, subscription, and PV metadata query.
+
+For worked examples, see the [ingestion](doc/cookbook/ingestion.md), [query](doc/cookbook/query.md), and [subscriptions](doc/cookbook/subscriptions.md) cookbook recipes.
 
 #### process variables
 
@@ -562,6 +589,8 @@ A StatsResult message contains a list of PvStats messages, one for each PV match
 
 Because the Ingestion Service handles PV time-series data ingestion requests asynchronously, a separate API is provided to check the disposition of individual requests or identify handling errors for a specified time period.
 
+See [Sweeping for ingestion failures](doc/cookbook/ingestion.md#sweeping-for-ingestion-failures) in the ingestion cookbook for why a production pipeline must check request status, and how.
+
 ### Request Status Query Methods
 <table>
 <tr>
@@ -602,6 +631,8 @@ Each RequestStatus message contains details about the status of an individual in
 ## PV Metadata API
 
 The PV Metadata API, part of the Annotation Service, provides methods for associating user-defined metadata with PVs and using that metadata to discover PVs of interest.  A PV metadata record stores the canonical PV name as its primary key, along with optional aliases (historical or alternate names), keyword tags, key-value attributes, and a free-text description.  Records also include audit timestamps (`createdTime`, `updatedTime`) and an optional `modifiedBy` field identifying the last writer.
+
+See the [PV metadata cookbook](doc/cookbook/pv-metadata.md) for worked examples of cataloguing PVs, discovery by tag and attribute, alias resolution, and driving data queries from metadata.
 
 No pre-registration of PVs is required — metadata records can be created independently of whether data has been ingested for a PV.
 
@@ -754,7 +785,7 @@ The Machine Configuration API, part of the Annotation Service, provides methods 
 
 A Configuration record stores `configurationName` as its canonical primary key (no pre-registration required), along with a required `category` (e.g., `beam_mode`, `energy`, `destination`), an optional `parentConfigurationName` for hierarchical organization, keyword tags, key-value attributes, a free-text description, and audit timestamps (`createdTime`, `updatedTime`).
 
-For querying the time intervals during which configurations were active, see the [Configuration Activation API](#configuration-activation-api) below.
+For querying the time intervals during which configurations were active, see the [Configuration Activation API](#configuration-activation-api) below.  For worked examples, see the [Machine Configuration cookbook](doc/cookbook/machine-configuration.md).
 
 ### Configuration Save Methods
 <table>
@@ -857,6 +888,8 @@ The Configuration Activation API, part of the Annotation Service, provides metho
 The primary use case is bulk-loading activation history from operational calendars, but live recording is also supported.  Multiple configurations may be active simultaneously as long as they belong to different categories — the server enforces that no two activations for the same configuration name, or within the same category, overlap.
 
 An optional `clientActivationId` field allows callers to supply a stable external identifier for an activation record (e.g., a calendar event ID).  If omitted, the server generates an opaque identifier.  Clients loading activations from external systems should always supply `clientActivationId` to enable future updates without a prior lookup.
+
+See the [Machine Configuration cookbook](doc/cookbook/machine-configuration.md) for worked examples of recording configuration changes in real time, closing an open-ended activation, and listing activation history for a configuration.
 
 ### Configuration Activation Save Methods
 <table>
@@ -966,6 +999,8 @@ rpc bulkSaveConfigurationActivation(BulkSaveConfigurationActivationRequest) retu
 ## Data Set API
 
 When designing the Data Platform's Annotation Service, we found we needed a mechanism for specifying a collection of data in the archive as the subject of an annotation.  We decided to add the notion of a Data Set consisting of a list of Data Blocks, where each Data Block specifies a list of PV names and a time range.
+
+See the [Data sets, annotations, and export cookbook](doc/cookbook/datasets-and-annotations.md) for the end-to-end workflow.
 
 If you think of the entire data archive as a giant spreadsheet, with a column for each PV name and a row for each measurement timestamp, a Data block specifies some region within that spreadsheet, and a Data Set contains a collection of those regions.  This is illustrated in the figure below.
 
@@ -1088,6 +1123,8 @@ ExportDataResult includes fields specifying the full path for the export output 
 ## Annotation API
 
 An Annotation allows clients to annotate the data archive with notes and descriptive information, data and experiment associations, and post-acquisition Calculations.
+
+See the [Data sets, annotations, and export cookbook](doc/cookbook/datasets-and-annotations.md) for worked examples of annotating datasets, publishing Calculations, and exporting.
 
 Some of the concepts helpful in understanding the Annotation API are discussed below, followed by details for the Data Platform APIs for creating and querying Annotations.
 
@@ -1258,6 +1295,8 @@ Another common pattern across Data Platform API query methods is in reporting em
 
 ---
 ## Example Java gRPC API Code
+
+For task-oriented examples spanning multiple API calls, see the [API Cookbook](doc/cookbook/README.md).  The example below shows the mechanics of a single call.
 
 Here is a simple example of calling the registerProvider() API from Java, after running protoc to build Java stubs.
 
