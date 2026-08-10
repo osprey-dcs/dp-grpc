@@ -31,8 +31,12 @@ Roughly in the order a new client encounters them.
 
 Python users should start with **[dp-python-lib](https://github.com/osprey-dcs/dp-python-lib)**,
 a client library that wraps this API with Python-friendly request builders and result objects.
-It is the recommended way to use MLDP from Python, and its own documentation covers client
-usage.
+It is the recommended way to use MLDP from Python.
+
+Its **[cookbook](https://github.com/osprey-dcs/dp-python-lib/tree/main/doc/cookbook)** is the
+Python counterpart to this one — the same tasks, documented against that library's client classes
+rather than the raw protocol.  Recipes there cover client construction and configuration, PV
+metadata, machine configuration, and querying time-series data into pandas / NumPy.
 
 If you need to work with the generated protobuf stubs directly, see
 [Generating and importing Python stubs](python-stubs.md) for what this repo produces and how the

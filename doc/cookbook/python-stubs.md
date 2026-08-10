@@ -6,6 +6,10 @@ from the same `.proto` files and published through
 
 > **Most Python users should not need this page.**  Install `dp-python-lib` and use its client
 > classes, which wrap the raw stubs with Python-friendly request builders and result objects.
+> Its [cookbook](https://github.com/osprey-dcs/dp-python-lib/tree/main/doc/cookbook) is the Python
+> counterpart to this one, covering client construction, PV metadata, machine configuration, and
+> querying into pandas / NumPy.
+>
 > This page is for readers who need to work with the generated protobuf modules directly, or who
 > want to understand how the stubs are produced.
 
