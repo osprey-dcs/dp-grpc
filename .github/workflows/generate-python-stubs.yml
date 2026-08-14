@@ -15,7 +15,7 @@ on:
         required: false
         default: "main"
       dry_run:
-        description: "Generate and diff only; do not push or open a PR"
+        description: "Generate and report only; do not push or open a PR"
         required: false
         type: boolean
         default: true
