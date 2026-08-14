@@ -14,6 +14,11 @@ on:
         description: "Target branch in dp-python-lib"
         required: false
         default: "main"
+      dry_run:
+        description: "Generate and diff only; do not push or open a PR"
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   generate-python-stubs:
@@ -25,19 +30,29 @@ jobs:
     env:
       TARGET_REPO: ${{ inputs.target_repo || 'osprey-dcs/dp-python-lib' }}
       TARGET_BRANCH: ${{ inputs.target_branch || 'main' }}
+      # A dry run generates stubs and reports what would change, but never checks out
+      # dp-python-lib, pushes, or opens a PR.  A rel-* tag push always syncs for real;
+      # a manual dispatch defaults to a dry run and must opt in to writing.  Defined
+      # once here because six separate step-level conditions would eventually drift,
+      # and the failure mode of a drifted one is an unintended write to another repo.
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
 
     steps:
       # -----------------------------
       # Checkout dp-grpc (this repo)
       # -----------------------------
       - name: Checkout dp-grpc
-        uses: actions/checkout@v4
+        # Actions are pinned to commit SHAs rather than floating major tags: this job
+        # holds DP_BOT_TOKEN, a cross-repo write credential, so a compromised upstream tag
+        # here would reach write access to dp-python-lib as well as this repo.
+        # Dependabot (.github/dependabot.yml) keeps the pins current.
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # -----------------------------
       # Python + gRPC tooling
       # -----------------------------
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
 
@@ -84,11 +99,18 @@ jobs:
             echo "release=false" >> $GITHUB_OUTPUT
           fi
 
+      # -----------------------------------------------------------------------------
+      # Everything below writes to dp-python-lib and is skipped on a dry run.  The
+      # checkout immediately below is the step that consumes DP_BOT_TOKEN, so a dry run
+      # never puts the cross-repo credential on disk at all.
+      # -----------------------------------------------------------------------------
+
       # -----------------------------
       # Checkout dp-python-lib
       # -----------------------------
       - name: Checkout dp-python-lib
-        uses: actions/checkout@v4
+        if: env.DRY_RUN != 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: ${{ env.TARGET_REPO }}
           ref: ${{ env.TARGET_BRANCH }}
@@ -99,6 +121,7 @@ jobs:
       # Sync generated stubs
       # -----------------------------
       - name: Sync Python stubs into dp-python-lib
+        if: env.DRY_RUN != 'true'
         run: |
           rm -rf dp-python-lib/src/dp_python_lib/grpc
           mkdir -p dp-python-lib/src/dp_python_lib/grpc
@@ -108,7 +131,7 @@ jobs:
       # Bump version (release only)
       # -----------------------------
       - name: Update pyproject.toml version
-        if: steps.mode.outputs.release == 'true'
+        if: env.DRY_RUN != 'true' && steps.mode.outputs.release == 'true'
         run: |
           cd dp-python-lib
           python - <<EOF
@@ -130,11 +153,13 @@ jobs:
       # -----------------------------
 
       - name: Configure git identity
+        if: env.DRY_RUN != 'true'
         run: |
           git config --global user.name "dp-grpc bot"
           git config --global user.email "dp-grpc-bot@users.noreply.github.com"
 
       - name: Commit changes
+        if: env.DRY_RUN != 'true'
         run: |
           cd dp-python-lib
           BRANCH="grpc-sync-${{ github.run_id }}"
@@ -143,6 +168,7 @@ jobs:
           git commit -m "Sync Python gRPC stubs from dp-grpc${{ steps.mode.outputs.release == 'true' && format(' rel-{0}', steps.mode.outputs.version) || '' }}" || echo "No changes to commit"
 
       - name: Push branch
+        if: env.DRY_RUN != 'true'
         run: |
           cd dp-python-lib
           git push origin HEAD
@@ -151,6 +177,7 @@ jobs:
       # Create PR (optional but recommended)
       # -----------------------------
       - name: Create pull request
+        if: env.DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ secrets.DP_BOT_TOKEN }}
           IS_RELEASE: ${{ steps.mode.outputs.release }}
@@ -171,4 +198,25 @@ jobs:
             --body "$BODY" \
             --base "${{ env.TARGET_BRANCH }}" \
             --head "$(git branch --show-current)" || echo "PR already exists"
+
+      # -----------------------------
+      # Dry run summary
+      # -----------------------------
+      - name: Report what a real run would sync
+        if: env.DRY_RUN == 'true'
+        run: |
+          set -euo pipefail
+          {
+            echo "### Dry run — nothing was pushed"
+            echo
+            echo "Generated $(find out/python -name '*.py' | wc -l | tr -d ' ') Python files"
+            echo "that a real run would sync into \`${TARGET_REPO}\` on branch"
+            echo "\`${TARGET_BRANCH}\`."
+            echo
+            echo "Re-dispatch with \`dry_run: false\` to push a branch and open a PR."
+            echo
+            echo '```'
+            find out/python -type f -name '*.py' | sort
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
