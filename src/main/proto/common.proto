@@ -498,9 +498,11 @@ message DataColumn {
  * message.  This field is subject to future modification for expanded use cases.
  *
  * NOTE: Use of this type for ingestion is deprecated, and may be removed in the next API version. Handling of
- * DataValue in ingestion causes per-sample memory allocation that is inefficient. Also, the ValueStatus mechanismk
+ * DataValue in ingestion causes per-sample memory allocation that is inefficient. Also, the ValueStatus mechanism
  * is useful for capturing status information from the control system, but not for automated cleaning tools that must
- * update value status information post-ingestion.
+ * update value status information post-ingestion.  The Sample Status API (see annotation.proto) is the designated
+ * replacement for ValueStatus: acquisition-time alarm/status information (e.g., EPICS severity and status) is
+ * captured as sample statuses in a status domain, and can be assigned or updated post-ingestion.
  */
 message DataValue {
 
@@ -724,6 +726,89 @@ message DataValues {
     Int64ArrayColumn int64ArrayColumn = 33;
     BoolArrayColumn boolArrayColumn = 34;
   }
+}
+
+
+//
+// ------------------- Sample Status Definitions ---------------------------
+//
+
+/*
+ * SampleStatusColumn
+ *
+ * Contains a vector of sample status codes for a single PV, with one entry per timestamp
+ * specified by the enclosing message's DataTimestamps.  Status codes are int32 values whose
+ * semantics are defined by the enclosing sample status domain, in the style of EnumColumn:
+ * the (domain, code) mapping is a contract between status producers and consumers, and is not
+ * validated or interpreted by the MLDP.  (A sample status domain registry for documenting
+ * domain code mappings is planned; see DpAnnotationService.saveSampleStatusDomain() /
+ * querySampleStatusDomains().)
+ *
+ * confidence and reasons are optional parallel arrays: each must either be empty (not
+ * supplied) or contain exactly one entry per timestamp.  An empty string in reasons indicates
+ * no reason for that sample; clients should omit an all-empty reasons list entirely rather
+ * than sending empty strings.
+ */
+message SampleStatusColumn {
+  string pvName = 1; // PV name
+  repeated int32 statusCodes = 2 [packed = true]; // one code per timestamp; semantics defined by domain
+  repeated float confidence = 3 [packed = true]; // optional; empty, or one value per timestamp
+  repeated string reasons = 4; // optional; empty, or one value per timestamp (empty string = none)
+}
+
+/*
+ * SampleStatusFrame
+ *
+ * The unit of sample status ingestion, paralleling DataFrame for time-series data.  A frame
+ * assigns statuses in a single (domain, layer) to samples of one or more PVs sharing a single
+ * DataTimestamps time axis.  Each SampleStatusColumn contains one status code per timestamp.
+ *
+ * domain names the semantic contract for interpreting status codes (e.g. "data_quality",
+ * "ml_anomaly").  layer names the producer stream assigning the statuses (e.g. "ml_model_v1",
+ * "operator_override"), allowing multiple independent interpretations of the same samples
+ * within the same domain.  Together with PV name and timestamp these form the identity key of
+ * an individual sample status: (pvName, timestamp, domain, layer).
+ *
+ * A frame need not cover all samples of the underlying data: sparse labeling is supported by
+ * supplying only the timestamps of the samples being labeled (e.g. a TimestampList naming a
+ * handful of suspect points), and the absence of a status for a sample means "no assertion" —
+ * there is no implicit default status.  Dense labeling of every sample in a regularly-sampled
+ * range is expressed efficiently with a SamplingClock axis.
+ *
+ * The MLDP does not validate that status timestamps correspond to archived data samples;
+ * alignment of statuses with samples is a producer contract, applied when statuses are joined
+ * with data at query time.  Matching is by exact (pvName, timestamp) equality at nanosecond
+ * precision, so producers should label using timestamps obtained from data query results (or
+ * exact SamplingClock arithmetic) — a recomputed or rounded timestamp will silently fail to
+ * match.
+ */
+message SampleStatusFrame {
+  string domain = 1; // Required, names the status code semantics contract.
+  string layer = 2; // Required, names the producer stream.
+  DataTimestamps dataTimestamps = 3; // Required, specifies timestamps for status values.
+  repeated SampleStatusColumn statusColumns = 4; // Required, one or more columns, one per PV.
+}
+
+/*
+ * SampleStatusBucket
+ *
+ * The unit of sample status query results, paralleling DataBucket for time-series data.
+ * Contains statuses for one PV in one (domain, layer) over a contiguous time period, with a
+ * DataTimestamps time axis and a SampleStatusColumn holding one status code per timestamp.
+ * The PV name is carried in the embedded SampleStatusColumn.
+ *
+ * source / modifiedBy / updatedTime reflect only the most recent save affecting the bucket;
+ * per-sample audit history is not maintained (consistent with the modifiedBy semantics of the
+ * metadata APIs: last writer only, no history).
+ */
+message SampleStatusBucket {
+  string domain = 1;
+  string layer = 2;
+  DataTimestamps dataTimestamps = 3; // Specifies timestamps for the bucket.
+  SampleStatusColumn statusColumn = 4; // Status codes (and optional confidence/reasons), with PV name.
+  string source = 5; // optional free-form provenance from most recent save affecting bucket
+  string modifiedBy = 6; // optional actor / user / service identity from most recent save affecting bucket
+  Timestamp updatedTime = 7; // server-set: time of most recent save affecting bucket
 }
 
 

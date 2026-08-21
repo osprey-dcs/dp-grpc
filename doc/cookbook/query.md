@@ -95,13 +95,16 @@ it is delivered.
 | `resultRepresentation` | `ResultRepresentation` | Optional. Format flags. |
 
 `QuerySpec` carries `timeRange` (required), `pvSelector` (required), and the optional
-`configurationSelector`.  The *same* `QuerySpec` can be handed to any of the four V2 methods —
-switching from buckets to samples, or from unary to streaming, changes nothing about your
-selection logic.
+`configurationSelector` and `sampleStatusSelector`.  A `QuerySpec` without
+`sampleStatusSelector` can be handed to any of the four V2 methods — switching from buckets to
+samples, or from unary to streaming, changes nothing about your selection logic.
+`sampleStatusSelector` is the one exception: it is supported by the sample-oriented methods
+only, and a bucket-oriented request with it set is rejected with an `ExceptionalResult` — see
+[Filtering a data query by status](sample-status.md#filtering-a-data-query-by-status).
 
 > **Name collision.**  `query.proto` defines both the V2 top-level `QuerySpec`
-> (`timeRange` / `pvSelector` / `configurationSelector`) and a *nested* V1
-> `QueryDataRequest.QuerySpec` (`beginTime` / `endTime` / `pvNames`).  In Java these are
+> (`timeRange` / `pvSelector` / `configurationSelector` / `sampleStatusSelector`) and a
+> *nested* V1 `QueryDataRequest.QuerySpec` (`beginTime` / `endTime` / `pvNames`).  In Java these are
 > `com.ospreydcs.dp.grpc.v1.query.QuerySpec` and
 > `com.ospreydcs.dp.grpc.v1.query.QueryDataRequest.QuerySpec`.  Importing the wrong one is an
 > easy and confusing mistake.
@@ -434,7 +437,9 @@ QuerySpec querySpec = QuerySpec.newBuilder()
 The server finds the matching `ConfigurationActivation` records, **unions** their active
 intervals, **intersects** that union with `QuerySpec.timeRange`, and retrieves data only within
 the resulting — possibly fragmented — intervals.  You get one result set covering several
-disjoint windows.
+disjoint windows.  When the spec also carries a `sampleStatusSelector`, the two compose by
+intersection: the activation intervals first restrict the time axis as described here, and
+status filtering then applies to the samples that survive.
 
 Criteria available: `configurationNameCriterion`, `clientActivationIdCriterion`,
 `categoryCriterion`, `tagsCriterion`, and `attributesCriterion`.  The same AND/OR rule applies.
@@ -471,7 +476,8 @@ V1 methods remain available and are not deprecated, so migration can be incremen
 `QueryDataRequest.QuerySpec{beginTime, endTime, pvNames}` becomes V2's top-level
 `QuerySpec{TimeRange, PvSelector.pvNameList}`.  Note that V1's `QuerySpec` has only those three
 fields — there is no PV-pattern or metadata selection in V1, so regex selection, metadata
-selection, configuration filtering, and paging are all additive in V2; you can adopt them later.
+selection, configuration filtering, sample-status filtering, and paging are all additive in V2;
+you can adopt them later.
 
 Serialized columns are also new as a *request* flag in V2.  The V1 methods have no serialized-column
 option — `QueryDataRequest.QuerySpec` declares only `beginTime`, `endTime`, and `pvNames`, and V1
@@ -505,13 +511,15 @@ column-oriented representation.  If you need row maps, pivot client-side from th
 
 ## Also worth knowing
 
-- **`QuerySpec` field 4 is reserved** (name `sampleStatusSelector`) for a future Sample Status
-  API.  Its shape is intentionally not committed yet.  Do not use field 4.
-- **Individual sample status is available today on `DataValue.valueStatus`**, which carries a
-  `message`, a `statusCode` (`NO_STATUS`, `DEVICE_STATUS`, `DRIVER_STATUS`, `RECORD_STATUS`,
-  `DB_STATUS`, `CONF_STATUS`, `UNDEFINED_STATUS`, `CLIENT_STATUS`), and a `severity`
-  (`NO_ALARM`, `MINOR_ALARM`, `MAJOR_ALARM`, `INVALID_ALARM`, `UNDEFINED_ALARM`).  You can filter
-  on it client-side; you cannot yet *select* on it server-side.
+- **`QuerySpec.sampleStatusSelector` (field 4) filters returned samples by sample status** —
+  see the [Sample Status API](../../README.md#sample-status-api) and
+  [Filtering a data query by status](sample-status.md#filtering-a-data-query-by-status).
+  Sample-oriented methods only: a `queryBuckets()` / `queryBucketsStream()` request with the
+  selector set is rejected with an `ExceptionalResult`.
+- **`DataValue.valueStatus` is deprecated** in favor of the Sample Status API: capture
+  acquisition-time alarm/status information (EPICS severity and status) as sample statuses in a
+  status domain instead.  `valueStatus` still appears on archived `DataValue`s that carry it and
+  can be filtered client-side; there is no server-side selection on it.
 - **Unary responses are bounded by the gRPC maximum message size.**  This is the practical reason
   to set `limit` on unary calls even when you think the result is small — an unbounded unary
   query against a wide PV set can exceed the limit and fail.
