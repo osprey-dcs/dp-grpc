@@ -145,6 +145,11 @@ service DpQueryService {
    * samples outside [beginTime, endTime).  Callers wanting samples strictly
    * within the range should use querySamples(), which trims.
    *
+   * QuerySpec.sampleStatusSelector is not supported by the bucket-oriented
+   * methods (buckets are returned whole and cannot represent per-sample
+   * filtering); a request with sampleStatusSelector set is rejected with an
+   * ExceptionalResult.
+   *
    * Intended for Java applications, archive export, infrastructure services, and
    * high-performance retrieval.
    */
@@ -164,6 +169,9 @@ service DpQueryService {
    * empty); ExecutionOptions.pageToken must be empty (a non-empty token is
    * rejected with an ExceptionalResult).  Use unary queryBuckets() when
    * resumable paging is required.
+   *
+   * QuerySpec.sampleStatusSelector is not supported (rejected with an
+   * ExceptionalResult); see queryBuckets().
    */
   rpc queryBucketsStream(QueryBucketsRequest) returns (stream QueryBucketsResponse);
 
@@ -180,6 +188,10 @@ service DpQueryService {
    * the range, so every returned timestamp satisfies beginTime <= t < endTime.
    * (This carries forward the trimming behavior of the V1 queryTable processor.)
    *
+   * Supports QuerySpec.sampleStatusSelector for restricting returned samples by
+   * sample status (see SampleStatusSelector and the Sample Status API in
+   * annotation.proto).
+   *
    * Expected to become the preferred method for the Python client library,
    * interactive analysis, data science, machine learning, and visualization.
    */
@@ -194,6 +206,9 @@ service DpQueryService {
    * fire-and-consume (no continuation tokens; ExecutionOptions.pageToken must be
    * empty, a non-empty token rejected with an ExceptionalResult).  Use unary
    * querySamples() when resumable paging is required.
+   *
+   * Supports QuerySpec.sampleStatusSelector for restricting returned samples by
+   * sample status; see querySamples().
    */
   rpc querySamplesStream(QuerySamplesRequest) returns (stream QuerySamplesResponse);
 
@@ -212,10 +227,7 @@ service DpQueryService {
  * any V2 query method.
  *
  * Supports timeRange (required), pvSelector (required), and the optional
- * configurationSelector.
- *
- * Field 4 is reserved for a future sampleStatusSelector, to be defined once the
- * Sample Status API is settled.  Its shape is intentionally not committed here.
+ * configurationSelector and sampleStatusSelector.
  */
 message QuerySpec {
 
@@ -226,10 +238,10 @@ message QuerySpec {
   // Optional, restrict to periods when matching configurations were active.
   ConfigurationSelector configurationSelector = 3;
 
-  // Reserved for a future sample-status selector (Sample Status API).
-  // The selector shape will be defined against that API when implemented.
-  reserved 4;
-  reserved "sampleStatusSelector";
+  // Optional, restrict returned samples by sample status (see the Sample Status API in
+  // annotation.proto).  Supported by the sample-oriented methods only; rejected on
+  // bucket-oriented methods.  See SampleStatusSelector.
+  SampleStatusSelector sampleStatusSelector = 4;
 }
 
 /*
@@ -372,6 +384,50 @@ message ConfigurationSelector {
       string key = 1;
       repeated string values = 2;
     }
+  }
+}
+
+/*
+ * SampleStatusSelector
+ *
+ * Restricts returned samples by sample status (see the Sample Status API in annotation.proto).
+ * A selector names a required domain, an optional set of layers (empty = all layers in the
+ * domain), a required non-empty list of status codes, and a mode:
+ *
+ *   - MODE_INCLUDE_MATCHING: only samples having at least one sample status in the selected
+ *     (domain, layers) whose code is in statusCodes are returned.  Samples with no status in
+ *     the selected (domain, layers) are excluded.
+ *   - MODE_EXCLUDE_MATCHING: samples having at least one sample status in the selected
+ *     (domain, layers) whose code is in statusCodes are dropped.  Samples with no status in
+ *     the selected (domain, layers) are returned.
+ *
+ * The two modes cover the canonical use cases without a separate unlabeled-handling flag:
+ * "return only anomalies" (INCLUDE — unlabeled samples excluded by definition) and "drop
+ * bad/suspect data" (EXCLUDE — unlabeled samples pass by definition).  A sample is "labeled"
+ * only by a status whose timestamp exactly equals the sample's timestamp (nanosecond
+ * precision); statuses are commonly sparse, so most samples are unlabeled.
+ *
+ * Supported by the sample-oriented methods only (querySamples() / querySamplesStream()),
+ * where filtering composes naturally with the ColumnTable missing-value representation: a
+ * filtered-out sample becomes a missing value (unset DataValue value oneof) at its
+ * (PV, timestamp) position, and timestamps at which all selected PVs are filtered out are
+ * omitted from the result entirely.  Bucket-oriented methods (queryBuckets() /
+ * queryBucketsStream()) return storage buckets whole and cannot represent per-sample
+ * filtering; a bucket-oriented request with sampleStatusSelector set is rejected with an
+ * ExceptionalResult.  (Bucket-granularity status selection may be considered in a future
+ * release.)
+ */
+message SampleStatusSelector {
+
+  string domain = 1; // Required, sample status domain to evaluate.
+  repeated string layers = 2; // Optional, layers to evaluate; empty = all layers in domain.
+  repeated int32 statusCodes = 3; // Required non-empty, status codes to match.
+  Mode mode = 4; // Required.
+
+  enum Mode {
+    MODE_UNSPECIFIED = 0; // No mode specified; the request will be rejected.
+    MODE_INCLUDE_MATCHING = 1; // Return only samples with a matching status.
+    MODE_EXCLUDE_MATCHING = 2; // Drop samples with a matching status.
   }
 }
 

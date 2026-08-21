@@ -16,7 +16,6 @@ This repo defines the gRPC API for the **Machine Learning Data Platform (MLDP)**
 src/main/proto/       # All proto files (the primary artifact of this repo)
 doc/cookbook/         # Task-oriented worked examples (see "Documentation" below)
 doc/                  # Images and proposed/design proto files
-.dev/plan/            # Planning documents (gitignored)
 tools/                # Dev scripts (cookbook snippet checker)
 pom.xml               # Maven build; runs protoc via protobuf-maven-plugin
 ```
@@ -284,4 +283,6 @@ Tagged as `rel-<version>`. Release artifacts (JAR + SHA-256 checksum) are attach
 
 ## Planning Artifacts
 
-Design documents and implementation plans are stored under `.dev/plan/issue-<N>/` and are gitignored.
+Design documents and implementation plans are stored outside the repo in
+`~/dp/dev/tickets/dp-grpc/<N>/`, one directory per GitHub issue number, so they are not lost
+if the repo working copy is clobbered. (Formerly the gitignored `.dev/plan/issue-<N>/`.)
