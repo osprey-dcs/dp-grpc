@@ -60,11 +60,11 @@ The main objective of the Ingestion Service API is to provide a streamlined high
 
 The core feature of the Query Service API is retrieval of PV time-series data over a range of time.  There are both unary and streaming query methods, with results that contain either bucketed or tabular data.  Methods are also provided for querying archive ingestion statistics for PVs and data providers.
 
-A second generation of the time-series query API (Query API V2) is also provided (see [PV data query V2 methods](#pv-data-query-v2-methods)).  V2 introduces a common `QuerySpec` shared by all query methods that describes *what* data to retrieve — time range, PV selection (explicit list, name pattern, or PV metadata criteria), and machine-configuration filtering — independently of *how* results are returned.  Bucket-oriented methods return the archive's native `DataBucket` objects, while sample-oriented methods return an aligned, column-oriented table suited to Python and analysis workflows.  The original V1 query methods remain available for backward compatibility.
+A second generation of the time-series query API (Query API V2) is also provided (see [PV data query V2 methods](#pv-data-query-v2-methods)).  V2 introduces a common `QuerySpec` shared by all query methods that describes *what* data to retrieve — time range, PV selection (explicit list, name pattern, or PV metadata criteria), machine-configuration filtering, and sample-status filtering — independently of *how* results are returned.  Bucket-oriented methods return the archive's native `DataBucket` objects, while sample-oriented methods return an aligned, column-oriented table suited to Python and analysis workflows.  The original V1 query methods remain available for backward compatibility.
 
 ### Annotation Service API
 
-The Annotation Service API provides tools for augmenting the PV time-series data archive with facility-specific information.  The core feature is identifying datasets, each containing blocks of data defined by a list of PVs and a range of time, and adding annotations to those datasets.  An annotation includes descriptive elements like freeform text comment, keywords, and key-value attributes, and may also include user-defined calculations that use links for tracking data provenance.  The API also includes tools for exporting datasets and calculations to common file formats including HDF5, CSV, and XLSX.  A PV metadata API is provided for associating user-defined metadata (aliases, tags, attributes, description) with PVs and using that metadata to discover PVs of interest.  A machine configuration API is also provided for recording and querying the operational state of the accelerator at a point in time, including reusable configuration definitions (e.g., `TopOff`, `3GeV`, `UserOps`) and time-stamped activation intervals that can be loaded from operational calendars or recorded in real time.
+The Annotation Service API provides tools for augmenting the PV time-series data archive with facility-specific information.  The core feature is identifying datasets, each containing blocks of data defined by a list of PVs and a range of time, and adding annotations to those datasets.  An annotation includes descriptive elements like freeform text comment, keywords, and key-value attributes, and may also include user-defined calculations that use links for tracking data provenance.  The API also includes tools for exporting datasets and calculations to common file formats including HDF5, CSV, and XLSX.  A PV metadata API is provided for associating user-defined metadata (aliases, tags, attributes, description) with PVs and using that metadata to discover PVs of interest.  A machine configuration API is also provided for recording and querying the operational state of the accelerator at a point in time, including reusable configuration definitions (e.g., `TopOff`, `3GeV`, `UserOps`) and time-stamped activation intervals that can be loaded from operational calendars or recorded in real time.  Finally, a sample status API allows users and automated systems (e.g., ML anomaly detectors, data cleaning pipelines, or operators) to assign status codes to individual PV samples at specific timestamps, supporting data quality assessment and multiple independent interpretations of the same archived data.
 
 ### Ingestion Stream Service API
 
@@ -91,7 +91,7 @@ The table below gives an overview of the Data Platform API organized by service.
 |------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Ingestion        | [Provider&nbsp;registration](#provider-registration-methods)<br>[PV&nbsp;data&nbsp;ingestion](#pv-data-ingestion-methods)<br>[PV&nbsp;data&nbsp;subscription](#pv-data-subscription-methods)<br>[Request&nbsp;Status&nbsp;query](#request-status-query-methods)<br>                                                                                                                                                                      |
 | Query            | [PV&nbsp;data&nbsp;query](#pv-data-query-methods)<br>[PV&nbsp;data&nbsp;query&nbsp;V2](#pv-data-query-v2-methods)<br>[PV&nbsp;stats&nbsp;query](#pv-stats-query-methods)<br>[Provider&nbsp;query](#provider-query-methods)<br>[Provider&nbsp;stats&nbsp;query](#provider-stats-query-methods)<br>                                                                                                                                                                                                        |
-| Annotation       | [PV&nbsp;metadata&nbsp;save](#pv-metadata-save-methods)<br>[PV&nbsp;metadata&nbsp;query](#pv-metadata-query-methods)<br>[PV&nbsp;metadata&nbsp;get](#pv-metadata-get-methods)<br>[PV&nbsp;metadata&nbsp;delete](#pv-metadata-delete-methods)<br>[Configuration&nbsp;save](#configuration-save-methods)<br>[Configuration&nbsp;query](#configuration-query-methods)<br>[Configuration&nbsp;Activation&nbsp;save](#configuration-activation-save-methods)<br>[Configuration&nbsp;Activation&nbsp;query](#configuration-activation-query-methods)<br>[Data&nbsp;Set&nbsp;save](#data-set-save-methods)<br>[Data&nbsp;Set&nbsp;query](#data-set-query-methods)<br>[Data&nbsp;export](#data-export-methods)<br>[Annotation&nbsp;save](#annotation-save-methods)<br>[Annotation&nbsp;query](#annotation-query-methods)<br> |
+| Annotation       | [PV&nbsp;metadata&nbsp;save](#pv-metadata-save-methods)<br>[PV&nbsp;metadata&nbsp;query](#pv-metadata-query-methods)<br>[PV&nbsp;metadata&nbsp;get](#pv-metadata-get-methods)<br>[PV&nbsp;metadata&nbsp;delete](#pv-metadata-delete-methods)<br>[Configuration&nbsp;save](#configuration-save-methods)<br>[Configuration&nbsp;query](#configuration-query-methods)<br>[Configuration&nbsp;Activation&nbsp;save](#configuration-activation-save-methods)<br>[Configuration&nbsp;Activation&nbsp;query](#configuration-activation-query-methods)<br>[Sample&nbsp;Status&nbsp;save](#sample-status-save-methods)<br>[Sample&nbsp;Status&nbsp;query](#sample-status-query-methods)<br>[Sample&nbsp;Status&nbsp;delete](#sample-status-delete-methods)<br>[Data&nbsp;Set&nbsp;save](#data-set-save-methods)<br>[Data&nbsp;Set&nbsp;query](#data-set-query-methods)<br>[Data&nbsp;export](#data-export-methods)<br>[Annotation&nbsp;save](#annotation-save-methods)<br>[Annotation&nbsp;query](#annotation-query-methods)<br> |
 | Ingestion Stream | [Data&nbsp;Event&nbsp;subscription](#pv-data-event-subscription-methods)<br>                                                                                                                                                                                                                                                                                                                                                             |
 
 ---
@@ -107,6 +107,7 @@ The table below gives an overview of the Data Platform API organized by entity. 
 | Ingestion Request Status | Data ingestion requests are handled asynchronously to maximize performance, so the disposition of individual requests is recorded in a Request Status record. | [Request&nbsp;Status&nbsp;query](#request-status-query-methods)<br>                                                                                                                                                                                                                                                            |
 | Machine Configuration | A reusable named definition of a machine mode or operational state (e.g., `TopOff`, `3GeV`, `UserOps`), belonging to a category, with optional parent hierarchy, tags, and attributes.  Used to describe the accelerator state for interpretation of associated PV data. | [Configuration&nbsp;save](#configuration-save-methods)<br>[Configuration&nbsp;query](#configuration-query-methods)<br>                                                                                                                                                                                    |
 | Configuration Activation | A time interval during which a Machine Configuration was active.  Supports both live recording and retroactive loading from operational calendars.  Multiple configurations may be active simultaneously if they belong to different categories. | [Configuration&nbsp;Activation&nbsp;save](#configuration-activation-save-methods)<br>[Configuration&nbsp;Activation&nbsp;query](#configuration-activation-query-methods)<br>                                                                                                                              |
+| Sample Status | A status code assigned to an individual PV sample at a specific timestamp, within a named domain (the status code semantics contract) and layer (the producer stream).  Supports data quality flags, ML anomaly labels, and operator overrides; sparse labeling is supported, and unlabeled samples carry no assertion. | [Sample&nbsp;Status&nbsp;save](#sample-status-save-methods)<br>[Sample&nbsp;Status&nbsp;query](#sample-status-query-methods)<br>[Sample&nbsp;Status&nbsp;delete](#sample-status-delete-methods)<br>                                                                                                       |
 | Data Set | A Data Set identifies PV data of interest in the archive through the use of Data Blocks, each one identifying a list of PVs and range of time. | [Data&nbsp;Set&nbsp;save](#data-set-save-methods)<br>[Data&nbsp;Set&nbsp;query](#data-set-query-methods)<br>[Data&nbsp;Set&nbsp;export](#data-set-export-methods)<br>                                                                                                                                                          |
 | Annotation | Annotations are used to annotate Data Sets in the archive with descriptive information, data associations, Calculations, and provenance tracking information. | [Annotation&nbsp;save](#annotation-save-methods)<br>[Annotation&nbsp;query](#annotation-query-methods)<br>                                                                                                                                                                                                                    |
 
@@ -124,6 +125,8 @@ The Data Platform API is intended to support the following use cases and pattern
 - Record machine configurations and the time intervals during which they were active, either in real time or by loading from operational calendars.
 - Query which machine configurations were active at a specific point in time or during a time range.
 - Correlate PV time-series data with machine configuration state for analysis and comparison (e.g., compare orbit data during TopOff vs UserOps).
+- Assign status codes to individual PV samples (e.g., ML anomaly labels, data quality flags, operator overrides), in multiple independent domains and layers.
+- Filter time-series query results by sample status (e.g., drop suspect data, or return only samples labeled anomalous).
 - Create Data Sets identifying archive data blocks of interest by PVs and time range.
 - Annotate Data Sets by adding descriptive information, linking to associated other Data Sets and Annotations, adding user-defined Calculations, and tracking data provenance.
 - Query Annotations and identify Data Sets of interest.
@@ -145,6 +148,7 @@ worked examples that span multiple calls — "how do I actually do X?" — see t
 | [Querying archived data](doc/cookbook/query.md) | Query API V2 — buckets vs. samples, `QuerySpec`, paging, and migrating a V1 client |
 | [PV metadata](doc/cookbook/pv-metadata.md) | Cataloguing PVs, discovery by tag/attribute/name, alias resolution, driving queries from metadata |
 | [Machine configuration](doc/cookbook/machine-configuration.md) | Creating a configuration, recording activations in real time, closing an open activation, listing activation history |
+| [Sample status](doc/cookbook/sample-status.md) | Labeling samples with status codes (dense and sparse), querying statuses, re-labeling a range, filtering data queries by status |
 | [Data sets, annotations, export](doc/cookbook/datasets-and-annotations.md) | Defining DataSets, annotating them, publishing Calculations, exporting to HDF5/CSV/XLSX |
 | [Generating and importing Python stubs](doc/cookbook/python-stubs.md) | How Python stubs are produced from these protos and published via dp-python-lib |
 
@@ -431,7 +435,9 @@ Query API V2 provides a second generation of the time-series data query API.  It
 
 Each request bundles three messages: a QuerySpec (the logical query), an optional ExecutionOptions (paging), and an optional ResultRepresentation (result format flags).
 
-A QuerySpec contains a TimeRange (half-open [beginTime, endTime)), a PvSelector, and an optional ConfigurationSelector.  The PvSelector selects PVs by one of an explicit name list, a name regex pattern, or PV metadata criteria (mirroring the PV Metadata query language).  The ConfigurationSelector restricts returned data to intervals during which matching machine configurations were active, by intersecting the matching activations' intervals with the query TimeRange.  A reserved field is set aside in QuerySpec for a future sample-status selector.
+A QuerySpec contains a TimeRange (half-open [beginTime, endTime)), a PvSelector, and optional ConfigurationSelector and SampleStatusSelector.  The PvSelector selects PVs by one of an explicit name list, a name regex pattern, or PV metadata criteria (mirroring the PV Metadata query language).  The ConfigurationSelector restricts returned data to intervals during which matching machine configurations were active, by intersecting the matching activations' intervals with the query TimeRange.
+
+The SampleStatusSelector restricts returned samples by sample status (see the [Sample Status API](#sample-status-api)).  It names a required status domain, an optional set of layers (empty means all layers in the domain), a required non-empty list of status codes, and a mode: MODE_INCLUDE_MATCHING returns only samples having a matching status (unlabeled samples are excluded by definition — "return only anomalies"), while MODE_EXCLUDE_MATCHING drops samples having a matching status (unlabeled samples pass by definition — "drop bad/suspect data").  A sample is matched only by a status whose timestamp exactly equals the sample's timestamp.  The selector is supported by the sample-oriented methods only, where a filtered-out sample becomes a missing value in the ColumnTable; a bucket-oriented request with the selector set is rejected with an ExceptionalResult, since buckets are returned whole and cannot represent per-sample filtering.
 
 ExecutionOptions carries a limit and an opaque pageToken, following the common MLDP paging model (an empty nextPageToken in the response indicates the last page).  ResultRepresentation carries flags controlling whether column metadata is excluded and whether serialized columns are used.
 
@@ -990,6 +996,130 @@ rpc bulkSaveConfigurationActivation(BulkSaveConfigurationActivationRequest) retu
 **patchConfigurationActivation()** will provide partial-update semantics, allowing individual fields (e.g., `endTime`) to be updated without replacing the entire record.  Field mask design is deferred to the release that implements this method.
 
 **bulkSaveConfigurationActivation()** will accept a list of SaveConfigurationActivationRequest messages and apply the same full-replace upsert semantics as saveConfigurationActivation() to each record in a single request.  Intended for bulk loading of activation records from operational calendars.
+
+</td>
+</tr>
+</table>
+
+
+## Sample Status API
+
+The Sample Status API, part of the Annotation Service, provides methods for assigning status codes to individual PV samples at specific timestamps.  It supports data cleaning, quality assessment, and MLOps workflows — for example, an ML model labeling samples as anomalous, a rule engine flagging out-of-range values, or an operator marking a handful of suspect points.  It is also the designated replacement for the deprecated DataValue ValueStatus mechanism: acquisition-time alarm/status information (e.g., EPICS alarm severity and status) is captured as sample statuses rather than embedded per-sample metadata, and can be assigned or updated post-ingestion.
+
+Statuses are interpreted within a **domain** — a named contract defining the semantics of the int32 status codes (e.g., `data_quality`, `ml_anomaly`).  Following the EnumColumn precedent, the (domain, code) mapping is a contract between status producers and consumers, and is not validated or interpreted by the MLDP.  A **layer** names the producer stream assigning the statuses (e.g., `ml_model_v1`, `rule_engine`, `operator_override`), allowing multiple independent interpretations of the same samples within the same domain.  The identity key of an individual sample status is (pvName, timestamp, domain, layer); an optional free-form `source` field carries descriptive provenance and is not part of the key.
+
+Sparse labeling is fully supported: a save need only supply the timestamps of the samples being labeled, and the absence of a status for a sample means "no assertion" — there is no implicit default status.  Statuses are matched to data samples by exact (pvName, timestamp) equality at nanosecond precision, so producers should label using timestamps obtained from data query results (or exact SamplingClock arithmetic).
+
+Sample statuses can be used to filter time-series query results via the QuerySpec `sampleStatusSelector` field; see [PV Data Query V2 Methods](#pv-data-query-v2-methods).  For worked examples, see the [Sample Status cookbook](doc/cookbook/sample-status.md).
+
+### Sample Status Save Methods
+<table>
+<tr>
+<td><pre>
+rpc saveSampleStatuses(SaveSampleStatusesRequest) returns (SaveSampleStatusesResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+The saveSampleStatuses() method performs a batch upsert of sample statuses.  Upsert semantics are per individual sample status, keyed by (pvName, timestamp, domain, layer): an entry replaces any existing status with the same key, and creates a new status otherwise.  Statuses at other timestamps are unaffected — to cleanly re-label a time range (e.g., after re-running an ML model whose output timestamps changed), first call deleteSampleStatuses() for the range, then save.
+
+----
+
+A SaveSampleStatusesRequest contains a list of SampleStatusFrame messages plus optional request-wide `source` (free-form provenance describing the producer) and `modifiedBy` (actor / user / service identity), recorded at storage-bucket granularity (last writer only; per-sample audit history is not maintained).  Each frame carries a required `domain` and `layer`, a DataTimestamps time axis (a SamplingClock for dense labeling of a regularly-sampled range, or an explicit TimestampList for sparse labeling), and one SampleStatusColumn per PV.  Each column carries the PV name, one int32 status code per timestamp, and optional `confidence` (float) and `reasons` (string) parallel arrays, each of which must be empty or contain exactly one entry per timestamp.
+
+Validation rules applied by the service: the request must contain at least one frame; each frame requires domain, layer, dataTimestamps, and at least one status column; a PV may appear in at most one column per frame; per-column array lengths must match the timestamp count; TimestampList timestamps must be strictly increasing.  The request is validated and rejected as a whole (no partial save on rejection).  The service does not validate that status timestamps correspond to archived data samples — alignment of statuses with samples is a producer contract.
+
+----
+
+The response payload is an ExceptionalResult if the request is rejected or an error is encountered (a mid-write error may leave some frames persisted), otherwise a SaveSampleStatusesResult containing `savedCount`, the total number of individual sample statuses upserted across all frames and columns.
+
+</td>
+</tr>
+</table>
+
+### Sample Status Query Methods
+<table>
+<tr>
+<td><pre>
+rpc querySampleStatuses(QuerySampleStatusesRequest) returns (QuerySampleStatusesResponse);
+rpc querySampleStatusesStream(QuerySampleStatusesRequest) returns (stream QuerySampleStatusesResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+**querySampleStatuses()** queries sample statuses for one or more PVs over a time range, optionally filtered by domain and layer, returning one page of SampleStatusBucket objects.
+
+A QuerySampleStatusesRequest contains a required TimeRange and `pvNames` list, optional `domains` and `layers` filters, and pagination parameters (`limit`, `pageToken`).  The filter fields are combined with logical AND; multiple values within a single field are combined with logical OR (exact match); an empty `domains` or `layers` list matches all values.
+
+Bucket selection follows the TimeRange overlap test, and boundary buckets are returned whole (not trimmed) — matching queryBuckets() — so a returned bucket may contain individual statuses outside [beginTime, endTime).
+
+The response payload is an ExceptionalResult if the request is rejected or an error is encountered, otherwise a QuerySampleStatusesResult containing a list of SampleStatusBucket objects and a `nextPageToken` for retrieving subsequent pages.  Buckets are ordered by (pvName, domain, layer, bucket start time), and every bucket is complete — paging boundaries always fall between buckets.  Each bucket carries its domain and layer, a DataTimestamps time axis, a SampleStatusColumn (PV name, status codes, and optional confidence/reasons), and last-writer provenance (`source`, `modifiedBy`, and server-set `updatedTime`).  An empty result set is returned as a QuerySampleStatusesResult with an empty list, not an ExceptionalResult.
+
+----
+
+**querySampleStatusesStream()** executes the same request as a server stream, following the queryBucketsStream() paging model: `limit` controls the chunk size of each streamed response; streaming is fire-and-consume — the server streams to completion and does not emit continuation tokens (`nextPageToken` is empty on every streamed message); `pageToken` must be empty (a non-empty token is rejected with an ExceptionalResult).  Use unary querySampleStatuses() when resumable paging is required.
+
+</td>
+</tr>
+</table>
+
+### Sample Status Delete Methods
+<table>
+<tr>
+<td><pre>
+rpc deleteSampleStatuses(DeleteSampleStatusesRequest) returns (DeleteSampleStatusesResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+The deleteSampleStatuses() method deletes sample statuses for the specified PVs within the half-open time range [beginTime, endTime), for a single required (domain, layer).  It is intended for cleanly re-labeling a time range (delete, then save) and for retiring an obsolete producer's statuses.
+
+Unlike query — which returns boundary buckets whole — deletion is exact at the sample axis: only statuses whose timestamps fall within the range are removed, and the server splits or rewrites boundary storage buckets as needed.
+
+----
+
+A DeleteSampleStatusesRequest contains a required `timeRange`, `pvNames` list, `domain`, and `layer`.  Requiring the time range and a single (domain, layer) guards against accidental mass deletion; to retire an entire layer, use a wide time range.
+
+----
+
+The response payload is an ExceptionalResult if the request is rejected or an error is encountered, otherwise a DeleteSampleStatusesResult containing `deletedCount`, the total number of individual sample statuses deleted.  A delete matching no statuses is a successful result with `deletedCount` = 0, not an ExceptionalResult.
+
+</td>
+</tr>
+</table>
+
+### Sample Status Placeholder Methods
+
+Two sample status domain registry methods are defined in the proto but not yet implemented.  Calling either method returns an error response.  They are defined now to reserve their names and establish the standard CRUD pattern for metadata APIs in this service.
+
+<table>
+<tr>
+<td><pre>
+rpc saveSampleStatusDomain(SaveSampleStatusDomainRequest) returns (SaveSampleStatusDomainResponse);
+rpc querySampleStatusDomains(QuerySampleStatusDomainsRequest) returns (QuerySampleStatusDomainsResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+**saveSampleStatusDomain()** will create or replace a sample status domain registry record, documenting the status code mappings (code → label / description) for a domain so that consumers can interpret status codes without out-of-band knowledge.  The registry record shape is deferred to the release that implements this method.
+
+**querySampleStatusDomains()** will query sample status domain registry records.  Search criteria and pagination fields are deferred to the release that implements this method.
 
 </td>
 </tr>

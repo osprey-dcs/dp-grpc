@@ -498,9 +498,11 @@ message DataColumn {
  * message.  This field is subject to future modification for expanded use cases.
  *
  * NOTE: Use of this type for ingestion is deprecated, and may be removed in the next API version. Handling of
- * DataValue in ingestion causes per-sample memory allocation that is inefficient. Also, the ValueStatus mechanismk
+ * DataValue in ingestion causes per-sample memory allocation that is inefficient. Also, the ValueStatus mechanism
  * is useful for capturing status information from the control system, but not for automated cleaning tools that must
- * update value status information post-ingestion.
+ * update value status information post-ingestion.  The Sample Status API (see annotation.proto) is the designated
+ * replacement for ValueStatus: acquisition-time alarm/status information (e.g., EPICS severity and status) is
+ * captured as sample statuses in a status domain, and can be assigned or updated post-ingestion.
  */
 message DataValue {
 
