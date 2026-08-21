@@ -223,8 +223,10 @@ service DpQueryService {
  * QuerySpec
  *
  * Describes the logical time-series query — the "WHERE" clause — independently
- * of paging and result representation.  The same QuerySpec may be executed by
- * any V2 query method.
+ * of paging and result representation.  A QuerySpec without sampleStatusSelector
+ * may be executed by any V2 query method; sampleStatusSelector is supported by
+ * the sample-oriented methods only (rejected on bucket-oriented methods, which
+ * return buckets whole and cannot represent per-sample filtering).
  *
  * Supports timeRange (required), pvSelector (required), and the optional
  * configurationSelector and sampleStatusSelector.
@@ -392,13 +394,13 @@ message ConfigurationSelector {
  *
  * Restricts returned samples by sample status (see the Sample Status API in annotation.proto).
  * A selector names a required domain, an optional set of layers (empty = all layers in the
- * domain), a required non-empty list of status codes, and a mode:
+ * domain), an optional set of status codes (empty = any code), and a required mode:
  *
  *   - MODE_INCLUDE_MATCHING: only samples having at least one sample status in the selected
- *     (domain, layers) whose code is in statusCodes are returned.  Samples with no status in
+ *     (domain, layers) whose code matches statusCodes are returned.  Samples with no status in
  *     the selected (domain, layers) are excluded.
  *   - MODE_EXCLUDE_MATCHING: samples having at least one sample status in the selected
- *     (domain, layers) whose code is in statusCodes are dropped.  Samples with no status in
+ *     (domain, layers) whose code matches statusCodes are dropped.  Samples with no status in
  *     the selected (domain, layers) are returned.
  *
  * The two modes cover the canonical use cases without a separate unlabeled-handling flag:
@@ -406,6 +408,18 @@ message ConfigurationSelector {
  * bad/suspect data" (EXCLUDE — unlabeled samples pass by definition).  A sample is "labeled"
  * only by a status whose timestamp exactly equals the sample's timestamp (nanosecond
  * precision); statuses are commonly sparse, so most samples are unlabeled.
+ *
+ * An empty statusCodes list matches statuses with any code, so "labeled at all by the selected
+ * (domain, layers)" is expressible without enumerating the domain's codes — which the MLDP
+ * itself does not know: INCLUDE with empty statusCodes returns only labeled samples; EXCLUDE
+ * with empty statusCodes drops every labeled sample, and keeps working when the producer adds
+ * new codes.
+ *
+ * When configurationSelector is also set on the QuerySpec, the two selectors compose by
+ * intersection: the matching configuration activation intervals first restrict the time axis
+ * (see ConfigurationSelector), and status filtering then applies to the samples that survive.
+ * A status attached to a sample outside the activation intervals has no effect, because that
+ * sample is already excluded.
  *
  * Supported by the sample-oriented methods only (querySamples() / querySamplesStream()),
  * where filtering composes naturally with the ColumnTable missing-value representation: a
@@ -421,7 +435,7 @@ message SampleStatusSelector {
 
   string domain = 1; // Required, sample status domain to evaluate.
   repeated string layers = 2; // Optional, layers to evaluate; empty = all layers in domain.
-  repeated int32 statusCodes = 3; // Required non-empty, status codes to match.
+  repeated int32 statusCodes = 3; // Optional, status codes to match (ORed); empty = any code.
   Mode mode = 4; // Required.
 
   enum Mode {

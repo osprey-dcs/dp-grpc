@@ -368,10 +368,15 @@ service DpAnnotationService {
    * (domain, layer), a DataTimestamps time axis, and one SampleStatusColumn per PV.
    *
    * Upsert semantics are per individual sample status, keyed by (pvName, timestamp, domain,
-   * layer): an entry replaces any existing status with the same key, and creates a new status
-   * otherwise.  Statuses at other timestamps are unaffected — to cleanly re-label a time range
-   * (e.g., after re-running an ML model whose output timestamps changed), first call
-   * deleteSampleStatuses() for the range, then save.
+   * layer): an entry REPLACES any existing status with the same key IN FULL — including the
+   * optional confidence and reasons — and creates a new status otherwise.  Statuses at other
+   * timestamps are unaffected — to cleanly re-label a time range (e.g., after re-running an ML
+   * model whose output timestamps changed), first call deleteSampleStatuses() for the range,
+   * then save.
+   *
+   * Frames are processed in request order.  If the same identity key appears in more than one
+   * frame of a request, the later frame's status wins (consistent with upsert across requests:
+   * last writer wins), and savedCount counts each write.
    *
    * The request is validated and rejected as a whole (no partial save on rejection).  If an
    * error is encountered while writing a valid request, an ExceptionalResult with
@@ -385,9 +390,10 @@ service DpAnnotationService {
   /*
    * querySampleStatuses(): Unary sample status query.
    *
-   * Query sample statuses for one or more PVs over a time range, optionally filtered by
-   * domain and layer.  Returns one page of SampleStatusBucket objects; additional pages are
-   * retrieved by resubmitting the request with the nextPageToken from the previous response as
+   * Query sample statuses over a time range, optionally filtered by PV name, domain, and
+   * layer (an empty pvNames list matches all PVs — e.g., to enumerate which PVs a layer has
+   * labeled).  Returns one page of SampleStatusBucket objects; additional pages are retrieved
+   * by resubmitting the request with the nextPageToken from the previous response as
    * pageToken.
    *
    * Bucket selection follows the TimeRange overlap test, and boundary buckets are returned
@@ -414,9 +420,11 @@ service DpAnnotationService {
   /*
    * deleteSampleStatuses()
    *
-   * Delete sample statuses for the specified PVs within the half-open time range
-   * [beginTime, endTime), for a single required (domain, layer).  Intended for cleanly
-   * re-labeling a range (delete then save) and for retiring an obsolete producer's statuses.
+   * Delete sample statuses within the half-open time range [beginTime, endTime), for a single
+   * required (domain, layer).  pvNames restricts the delete to the listed PVs; an empty
+   * pvNames list is a deliberate wildcard deleting the (domain, layer)'s statuses for ALL PVs
+   * in the range.  Intended for cleanly re-labeling a range (delete then save) and for
+   * retiring an obsolete producer's statuses (wide time range + empty pvNames).
    *
    * Unlike query — which returns boundary buckets whole — deletion is EXACT at the sample
    * axis: only statuses whose timestamps fall within the range are removed; the server splits
@@ -2177,11 +2185,19 @@ message GetActiveConfigurationsResponse {
  * (domain, layer) to one or more PVs sharing a DataTimestamps time axis.
  *
  * Upsert semantics are per individual sample status, keyed by (pvName, timestamp, domain,
- * layer); see saveSampleStatuses().  To cleanly re-label a time range, call
- * deleteSampleStatuses() for the range first.
+ * layer); see saveSampleStatuses().  WARNING: saving a key that already exists replaces that
+ * status IN FULL — statusCode, confidence, and reasons alike — so callers must supply the
+ * complete desired state for each status; re-saving with an empty confidence or reasons list
+ * clears any previously stored values (there is no patch-style partial update of a status).
+ * To cleanly re-label a time range, call deleteSampleStatuses() for the range first.
+ *
+ * Frames are processed in request order; if the same identity key appears in more than one
+ * frame, the later frame wins and savedCount counts each write.
  *
  * source and modifiedBy apply to all frames in the request and are recorded at storage-bucket
- * granularity (last writer only; per-sample audit history is not maintained).
+ * granularity (last writer only; per-sample audit history is not maintained).  Batch frames
+ * from a single producer per request: mixing producers in one request records the same
+ * source/modifiedBy for all of them, misattributing provenance.
  *
  * Note: updatedTime is a server-set audit timestamp and is not accepted as input; it is
  * returned in query responses only.
@@ -2192,8 +2208,9 @@ message GetActiveConfigurationsResponse {
  *   - A PV may appear in at most one statusColumn per frame.
  *   - In each column, statusCodes must contain exactly one entry per timestamp; confidence
  *     and reasons must each be empty or contain exactly one entry per timestamp.
- *   - TimestampList timestamps must be strictly increasing (a SamplingClock is inherently
- *     ordered and unique).
+ *   - dataTimestamps must specify at least one timestamp: a SamplingClock requires
+ *     periodNanos > 0 and count >= 1; a TimestampList must be non-empty with strictly
+ *     increasing timestamps.
  *   - Batch size limits may be enforced by server configuration; oversized requests are
  *     rejected.
  */
@@ -2243,7 +2260,9 @@ message SaveSampleStatusesResponse {
  * Combining semantics:
  *   - The filter fields (pvNames, domains, layers) are combined with logical AND.
  *   - Multiple values within a single field are combined with logical OR (exact match).
- *   - domains and layers are optional filters: an empty list matches all values.
+ *   - All three are optional filters: an empty list matches all values.  An empty pvNames
+ *     list matches all PVs with statuses in the range — the way to enumerate which PVs a
+ *     (domain, layer) has labeled, e.g. before retiring the layer.
  *
  * Pagination (unary):
  *   - limit specifies the maximum number of buckets to return per response
@@ -2257,7 +2276,7 @@ message SaveSampleStatusesResponse {
  */
 message QuerySampleStatusesRequest {
   dp.service.common.TimeRange timeRange = 1; // Required, query time interval.
-  repeated string pvNames = 2; // Required, one or more PV names (exact match, ORed).
+  repeated string pvNames = 2; // Optional filter (exact match, ORed); empty = all PVs.
   repeated string domains = 3; // Optional filter (exact match, ORed); empty = all domains.
   repeated string layers = 4; // Optional filter (exact match, ORed); empty = all layers.
   uint32 limit = 5;
@@ -2307,13 +2326,15 @@ message QuerySampleStatusesResponse {
 /*
  * DeleteSampleStatusesRequest
  *
- * Delete sample statuses for the specified PVs within the half-open time range
- * [beginTime, endTime), for a single required (domain, layer).  Deletion is exact at the
- * sample axis; see deleteSampleStatuses().
+ * Delete sample statuses within the half-open time range [beginTime, endTime), for a single
+ * required (domain, layer).  pvNames restricts the delete to the listed PVs; an empty list is
+ * a deliberate wildcard deleting the (domain, layer)'s statuses for ALL PVs in the range —
+ * the path for retiring an obsolete layer.  The required domain, layer, and timeRange scope
+ * every delete.  Deletion is exact at the sample axis; see deleteSampleStatuses().
  */
 message DeleteSampleStatusesRequest {
   dp.service.common.TimeRange timeRange = 1; // Required, deletion time interval.
-  repeated string pvNames = 2; // Required, one or more PV names (exact match).
+  repeated string pvNames = 2; // Optional (exact match, ORed); empty = all PVs in (domain, layer).
   string domain = 3; // Required.
   string layer = 4; // Required.
 }

@@ -3,10 +3,10 @@
 Worked examples for the Sample Status API, part of the Annotation Service: assigning status
 codes to individual PV samples, reading them back, and using them to filter time-series queries.
 
-> **Verified against:** dp-grpc `main` following `rel-1.16.0` — the Sample Status API first
-> appears in the release after 1.16.0 and exists in no earlier release.  The domain registry
-> methods (`saveSampleStatusDomain()` / `querySampleStatusDomains()`) are reserved placeholders
-> in that release and return a "not implemented" error.
+> **Verified against:** dp-grpc `rel-1.17.0` (Java `com.ospreydcs:dp-grpc:1.17.0`).
+> The Sample Status API is **new in 1.17.0** and exists in no earlier release.  The domain
+> registry methods (`saveSampleStatusDomain()` / `querySampleStatusDomains()`) are reserved
+> placeholders in that release and return a "not implemented" error.
 
 Reference documentation: [Sample Status API](../../README.md#sample-status-api) and
 [PV Data Query V2 Methods](../../README.md#pv-data-query-v2-methods) (for the
@@ -33,7 +33,6 @@ import com.ospreydcs.dp.grpc.v1.query.SampleStatusSelector;
 import com.ospreydcs.dp.grpc.v1.query.QuerySpec;
 import com.ospreydcs.dp.grpc.v1.query.PvSelector;
 import com.ospreydcs.dp.grpc.v1.query.QuerySamplesRequest;
-import com.ospreydcs.dp.grpc.v1.query.QuerySamplesResponse;
 import com.ospreydcs.dp.grpc.v1.query.ExecutionOptions;
 ```
 
@@ -161,7 +160,7 @@ QuerySampleStatusesRequest request = QuerySampleStatusesRequest.newBuilder()
     .setTimeRange(TimeRange.newBuilder()
         .setBeginTime(ts(t0))
         .setEndTime(ts(t1)))                     // half-open [beginTime, endTime)
-    .addPvNames("S01-GCC01")                     // required; multiple names ORed
+    .addPvNames("S01-GCC01")                     // optional filter; empty = all PVs
     .addDomains("data_quality")                  // optional filter; empty = all domains
     .addLayers("operator_override")              // optional filter; empty = all layers
     .setLimit(100)
@@ -170,7 +169,9 @@ QuerySampleStatusesRequest request = QuerySampleStatusesRequest.newBuilder()
 ```
 
 Filter fields are ANDed; values within a field are ORed — the
-[standard criteria rules](conventions.md#query-criteria).  Page with the
+[standard criteria rules](conventions.md#query-criteria).  All three filters are optional: an
+empty `pvNames` list matches **all** PVs with statuses in the range, which is how you discover
+what a layer has labeled (e.g. before retiring it).  Page with the
 [standard loop](conventions.md#pagination) over
 `QuerySampleStatusesResult.nextPageToken`.
 
@@ -210,7 +211,7 @@ DeleteSampleStatusesRequest request = DeleteSampleStatusesRequest.newBuilder()
     .setTimeRange(TimeRange.newBuilder()
         .setBeginTime(ts(t0))
         .setEndTime(ts(t1)))
-    .addPvNames("S01-BPM01")
+    .addPvNames("S01-BPM01")                     // optional; omit entirely = all PVs
     .setDomain("ml_anomaly")                     // required -- exactly one domain
     .setLayer("ml_model_v1")                     // required -- exactly one layer
     .build();
@@ -222,7 +223,16 @@ as needed.  A delete matching nothing is a success with `deletedCount = 0`, not 
 `ExceptionalResult`.
 
 The required single (domain, layer) guards against deleting more than one producer's work at
-once.  To retire an obsolete layer entirely, use a wide time range.
+once.  `pvNames` is optional: an empty list is a deliberate wildcard covering every PV the
+(domain, layer) has labeled in the range.  To retire an obsolete layer entirely, use a wide
+time range and omit `pvNames` — and to see what you are about to delete, run
+`querySampleStatuses()` with the same wildcard first.
+
+> **Delete-then-save is two RPCs, not a transaction.**  Between the calls, concurrent readers
+> see the range unlabeled — and because absence means "no assertion", a `MODE_EXCLUDE_MATCHING`
+> data query in that window stops excluding the affected samples.  If the process fails after
+> the delete but before the save, the range *stays* unlabeled: treat delete + save as a unit
+> and re-run the save on failure (the per-status upsert makes retries safe).
 
 ## Filtering a data query by status
 
@@ -237,7 +247,7 @@ final int DQ_SUSPECT = 2, DQ_BAD = 3;            // the data_quality contract (s
 SampleStatusSelector selector = SampleStatusSelector.newBuilder()
     .setDomain("data_quality")                   // required
     .addLayers("operator_override")              // optional; empty = all layers in the domain
-    .addStatusCodes(DQ_SUSPECT)                  // required non-empty; codes ORed
+    .addStatusCodes(DQ_SUSPECT)                  // optional; codes ORed, empty = any code
     .addStatusCodes(DQ_BAD)
     .setMode(SampleStatusSelector.Mode.MODE_EXCLUDE_MATCHING)
     .build();
@@ -259,6 +269,11 @@ The mirror-image query — "return only the anomalies" — uses `MODE_INCLUDE_MA
 which unlabeled samples are excluded by definition.  There is no separate switch for how
 unlabeled samples are treated; it falls out of the mode.
 
+Leaving `statusCodes` empty matches statuses with **any** code: `MODE_EXCLUDE_MATCHING` with no
+codes drops every sample the (domain, layers) labeled at all — and keeps working when the
+producer adds new codes — while `MODE_INCLUDE_MATCHING` with no codes returns only labeled
+samples.
+
 In the returned `ColumnTable`, a filtered-out sample becomes a missing value (unset `DataValue`
 value oneof) at its (PV, timestamp) position, exactly like a sample the PV never archived, and
 timestamps at which every selected PV was filtered out are omitted entirely.  Read the table as
@@ -271,6 +286,14 @@ with an `ExceptionalResult`.
 
 ## Also worth knowing
 
+- **Saving a key replaces the status in full.**  `statusCodes` entry, `confidence`, and
+  `reasons` alike — re-saving a key with an empty `confidence` or `reasons` list clears any
+  previously stored values, so supply the complete desired state every time.  Frames are
+  processed in request order; a key appearing in two frames takes the later frame's value.
+- **The selector composes with `configurationSelector` by intersection.**  The activation
+  intervals first restrict the time axis, then status filtering applies to the samples that
+  survive; see
+  [query.md](query.md#restricting-a-query-to-configuration-activation-intervals).
 - **The bucket layout of query results is a storage detail.**  How statuses group into
   `SampleStatusBucket`s (and whether their windows align with data buckets) is not part of the
   contract; consume the statuses, not the bucketing.
@@ -280,6 +303,8 @@ with an `ExceptionalResult`.
   never matches during selector filtering.
 - **`source` and `modifiedBy` are last-writer-only**, recorded at storage-bucket granularity.
   There is no per-sample audit history.  `updatedTime` is server-set and not accepted as input.
+  Both apply to the *whole* save request, so batch frames from a single producer per request —
+  mixing producers records the same provenance for all of them.
 - **Whole-request validation.**  A save is validated and rejected as a whole — no partial save
   on rejection.  A mid-write *error* on a valid request may leave some frames persisted; the
   per-status upsert makes retrying the whole request safe.

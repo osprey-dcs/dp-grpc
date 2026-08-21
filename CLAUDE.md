@@ -27,7 +27,7 @@ pom.xml               # Maven build; runs protoc via protobuf-maven-plugin
 | `common.proto` | Shared data structures used by all services |
 | `ingestion.proto` | DpIngestionService — provider registration, data ingestion, subscriptions, request status |
 | `query.proto` | DpQueryService — time-series data query, PV metadata query, provider query |
-| `annotation.proto` | DpAnnotationService — PV metadata, machine configuration, DataSets, Annotations, Calculations, data export |
+| `annotation.proto` | DpAnnotationService — PV metadata, machine configuration, sample status, DataSets, Annotations, Calculations, data export |
 | `ingestion_stream.proto` | DpIngestionStreamService — data event subscriptions |
 
 Proto files are compiled by the `protobuf-maven-plugin` (0.6.1) using `protoc` and `grpc-java`. Generated Java sources land in `target/generated-sources/`.
@@ -51,6 +51,9 @@ Shared messages for the machine configuration API (added in issue #120):
 - **`ConfigurationActivation`** — time interval during which a Configuration was active. Fields: `clientActivationId` (optional client-supplied key; server-generates if absent), `configurationName`, `startTime`, `endTime` (absent = open-ended), `description`, `tags`, `attributes`, `createdTime`, `updatedTime`, `modifiedBy`.
 
 Placed in `common.proto` so query and other services can reference them without import cycles.
+
+### Sample Status Messages (`common.proto`)
+Shared messages for the sample status API (added in issue #121): `SampleStatusColumn` (one PV's int32 status codes, optional `confidence`/`reasons` parallel arrays), `SampleStatusFrame` (unit of save: one (domain, layer), a `DataTimestamps` axis, one column per PV), `SampleStatusBucket` (unit of query results, with last-writer `source`/`modifiedBy`/`updatedTime`). The identity key of an individual status is (pvName, timestamp, domain, layer); upsert replaces a status in full; absence of a status means "no assertion"; matching against data samples is by exact timestamp at nanosecond precision.
 
 ### DataFrame (`common.proto`)
 The unit of ingestion. Contains `DataTimestamps` (either a `SamplingClock` or explicit `TimestampList`) plus lists of the column message types above.
@@ -93,7 +96,7 @@ V1 (retained for backward compatibility):
 - `queryProviders` — find providers by id, text, tags, attributes
 - `queryProviderStats` — ingestion statistics for a provider
 
-V2 (added in issue #123): a common `QuerySpec` (time range + `PvSelector` [name list / regex / metadata criteria] + `ConfigurationSelector`) is bundled with `ExecutionOptions` (paging: `limit`/`pageToken`) and `ResultRepresentation` (format flags) in each request. `QuerySpec` field 4 reserves a future `sampleStatusSelector`.
+V2 (added in issue #123): a common `QuerySpec` (time range + `PvSelector` [name list / regex / metadata criteria] + `ConfigurationSelector` + `SampleStatusSelector`) is bundled with `ExecutionOptions` (paging: `limit`/`pageToken`) and `ResultRepresentation` (format flags) in each request. `QuerySpec.sampleStatusSelector` (field 4, added in issue #121) filters returned samples by sample status; it is supported by the sample-oriented methods only and rejected on bucket-oriented methods. When combined with `configurationSelector`, the two compose by intersection (activation intervals restrict the time axis, then status filtering applies).
 - `queryBuckets` / `queryBucketsStream` — bucket-oriented; returns `DataBucket` objects, boundary buckets whole. Unary is resumable/paged; streaming is fire-and-consume (chunked, no continuation tokens).
 - `querySamples` / `querySamplesStream` — sample-oriented; returns an aligned column-oriented `ColumnTable` (union timestamp axis, samples trimmed to `[beginTime, endTime)`, missing values via unset `DataValue`). Preferred for Python/analysis.
 
@@ -101,6 +104,7 @@ V2 (added in issue #123): a common `QuerySpec` (time range + `PvSelector` [name 
 - `savePvMetadata` / `queryPvMetadata` / `getPvMetadata` / `deletePvMetadata` — PV metadata CRUD (`patchPvMetadata` / `bulkSavePvMetadata` deferred stubs)
 - `saveConfiguration` / `queryConfigurations` / `getConfiguration` / `deleteConfiguration` — machine configuration definition CRUD (`patchConfiguration` / `bulkSaveConfiguration` deferred stubs)
 - `saveConfigurationActivation` / `queryConfigurationActivations` / `getConfigurationActivation` / `deleteConfigurationActivation` / `getActiveConfigurations` — configuration activation CRUD and point-in-time query (`patchConfigurationActivation` / `bulkSaveConfigurationActivation` deferred stubs)
+- `saveSampleStatuses` / `querySampleStatuses` / `querySampleStatusesStream` / `deleteSampleStatuses` — sample status API (issue #121): batch upsert of per-sample status codes keyed by (pvName, timestamp, domain, layer), bucket-oriented query, exact-at-sample-axis delete; empty `pvNames` on query/delete = all PVs (`saveSampleStatusDomain` / `querySampleStatusDomains` deferred stubs)
 - `saveDataSet` / `queryDataSets` — manage DataSets (blocks of PVs × time ranges)
 - `saveAnnotation` / `queryAnnotations` — manage Annotations (text, tags, attributes, Calculations, provenance)
 - `exportData` — export DataSets and/or Calculations to HDF5, CSV, or XLSX
