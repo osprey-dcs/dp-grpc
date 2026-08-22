@@ -3,10 +3,11 @@
 Worked examples for the Sample Status API, part of the Annotation Service: assigning status
 codes to individual PV samples, reading them back, and using them to filter time-series queries.
 
-> **Verified against:** dp-grpc `rel-1.17.0` (Java `com.ospreydcs:dp-grpc:1.17.0`).
-> The Sample Status API is **new in 1.17.0** and exists in no earlier release.  The domain
-> registry methods (`saveSampleStatusDomain()` / `querySampleStatusDomains()`) are reserved
-> placeholders in that release and return a "not implemented" error.
+> **Verified against:** dp-grpc `1.16.0` (Java `com.ospreydcs:dp-grpc:1.16.0`).
+> The Sample Status API is **new in 1.16.0**, which is not yet released — it is verified
+> against the `main` branch, and exists in no released version.  The domain registry methods
+> (`saveSampleStatusDomain()` / `querySampleStatusDomains()`) are reserved placeholders in
+> that release and return a "not implemented" error.
 
 Reference documentation: [Sample Status API](../../README.md#sample-status-api) and
 [PV Data Query V2 Methods](../../README.md#pv-data-query-v2-methods) (for the
