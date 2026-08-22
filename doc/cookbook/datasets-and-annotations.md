@@ -3,10 +3,6 @@
 Worked examples for defining DataSets, attaching Annotations and derived Calculations to them,
 and exporting the result to HDF5, CSV, or XLSX — all part of the Annotation Service.
 
-> **Verified against:** dp-grpc `rel-1.14.0` (Java `com.ospreydcs:dp-grpc:1.14.0`).
-> All five methods used here (`saveDataSet`, `queryDataSets`, `saveAnnotation`,
-> `queryAnnotations`, `exportData`) exist in 1.14.0 and their field sets are unchanged in 1.15.0.
-
 Reference documentation: [Data Set API](../../README.md#data-set-api),
 [Data Export Methods](../../README.md#data-export-methods), and
 [Annotation API](../../README.md#annotation-api).

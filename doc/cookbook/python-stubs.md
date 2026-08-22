@@ -85,5 +85,5 @@ numbers are not reused or repurposed.  Stubs generated from a newer dp-grpc rele
 generally interoperate with an older server, and vice versa, with unknown fields ignored.
 
 That said, a client calling a method the deployed server does not implement will get an error
-response — so when following a cookbook recipe, check its **Verified against** note against your
-deployed version.
+response.  The cookbook recipes track the current release, so if you are running an older server,
+check the method against the [README](../../README.md) before relying on it.

@@ -209,13 +209,21 @@ time ranges). Recipes **link to `conventions.md` rather than repeating it**.
 Recipe structure, established by `machine-configuration.md`:
 
 1. H1 title, then a one-or-two sentence statement of what it covers
-2. A `> **Verified against:** dp-grpc rel-X.Y.Z` blockquote — state the release the recipe
-   was checked against, and call out any method that does not exist in that release
-3. Reference links to the relevant `README.md` anchors and to `conventions.md`
-4. An imports block, where the recipe uses deeply nested generated classes
-5. `## Contents`, then `## Model` explaining domain concepts before any code
-6. Task-oriented `##` sections with numbered steps
-7. `## Also worth knowing` for the leftovers
+2. Reference links to the relevant `README.md` anchors and to `conventions.md`
+3. An imports block, where the recipe uses deeply nested generated classes
+4. `## Contents`, then `## Model` explaining domain concepts before any code
+5. Task-oriented `##` sections with numbered steps
+6. `## Also worth knowing` for the leftovers
+
+Recipes do **not** carry a "verified against" header.  Only the latest release is supported, so
+recipes describe the current state of the protos on `main`; a per-recipe "verified against
+rel-X.Y.Z" claim decays at every version bump and asserts a re-verification that generally did
+not happen.  The compile-based checks below are the real guarantee that a recipe matches the
+protos, and the `rel-*` tags are the authority on what any past release contained.
+
+Do add a short blockquote note when a recipe uses a method or message **added in a specific
+release** — "added in 1.15.0 and not available in earlier releases".  That is a durable fact
+about the API rather than a claim about when someone last checked, so it never needs updating.
 
 Conventions:
 

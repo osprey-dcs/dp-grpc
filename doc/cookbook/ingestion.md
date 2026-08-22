@@ -4,14 +4,13 @@ Worked examples for the Ingestion Service: registering a provider, choosing a ti
 column type, sending data by unary call or stream, and confirming that what you sent actually
 landed in the archive.
 
-> **Verified against:** dp-grpc `rel-1.14.0` (Java `com.ospreydcs:dp-grpc:1.14.0`).
-> All methods and messages in this recipe exist in 1.14.0 and are unchanged in 1.15.0.  (The
-> Query API V2 methods referenced in passing under *Verifying a round trip* are new in 1.15.0.)
-
 Reference documentation: [Provider API](../../README.md#provider-api),
 [PV Data Ingestion Methods](../../README.md#pv-data-ingestion-methods), and
 [Ingestion Request Status API](../../README.md#ingestion-request-status-api).
 Shared response, criteria, and time conventions are in [conventions.md](conventions.md).
+
+> The Query API V2 methods referenced in passing under *Verifying a round trip* were added in
+> 1.15.0 and are not available in earlier releases.
 
 ### Imports used by the examples
 

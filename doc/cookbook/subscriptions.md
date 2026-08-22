@@ -4,13 +4,12 @@ Worked examples for the two live-data subscription methods: `DpIngestionService.
 which tails new data for a list of PVs, and `DpIngestionStreamService.subscribeDataEvent()`, which
 fires when a PV condition is met and can capture a window of data around the trigger.
 
-> **Verified against:** dp-grpc `rel-1.14.0` (Java `com.ospreydcs:dp-grpc:1.14.0`).
-> Both methods and all messages used here are unchanged in 1.15.0.  The Query API V2 methods
-> referenced in passing (`queryBuckets`) are new in 1.15.0 and are *not* available in 1.14.
-
 Reference documentation: [PV Data Subscription Methods](../../README.md#pv-data-subscription-methods)
 and [PV Data Event Subscription Methods](../../README.md#pv-data-event-subscription-methods).
 Shared response-checking rules are in [conventions.md](conventions.md).
+
+> The Query API V2 method referenced in passing (`queryBuckets`) was added in 1.15.0 and is
+> not available in earlier releases.
 
 ## Contents
 

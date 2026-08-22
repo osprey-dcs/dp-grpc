@@ -3,15 +3,12 @@
 Worked examples for the Sample Status API, part of the Annotation Service: assigning status
 codes to individual PV samples, reading them back, and using them to filter time-series queries.
 
-> **Verified against:** dp-grpc `rel-1.17.0` (Java `com.ospreydcs:dp-grpc:1.17.0`).
-> The Sample Status API is **new in 1.17.0** and exists in no earlier release.  The domain
-> registry methods (`saveSampleStatusDomain()` / `querySampleStatusDomains()`) are reserved
-> placeholders in that release and return a "not implemented" error.
-
 Reference documentation: [Sample Status API](../../README.md#sample-status-api) and
 [PV Data Query V2 Methods](../../README.md#pv-data-query-v2-methods) (for the
 `sampleStatusSelector`).  Response checking, paging, and time-range semantics follow the
 patterns in [conventions.md](conventions.md).
+
+> The Sample Status API was added in 1.16.0 and is not available in earlier releases.
 
 ### Imports used by the examples
 
@@ -308,6 +305,10 @@ with an `ExceptionalResult`.
 - **Whole-request validation.**  A save is validated and rejected as a whole — no partial save
   on rejection.  A mid-write *error* on a valid request may leave some frames persisted; the
   per-status upsert makes retrying the whole request safe.
+- **The status domain registry methods are not yet implemented.**
+  `saveSampleStatusDomain()` and `querySampleStatusDomains()` are reserved placeholders and
+  return a "not implemented" error.  Domains are used simply by naming them, as the recipes
+  above do; there is no registration step.
 - The Sample Status API is the designated replacement for the deprecated `DataValue`
   `ValueStatus` mechanism: capture acquisition-time alarm/status information (e.g. EPICS
   severity and status) as sample statuses in a status domain instead.
