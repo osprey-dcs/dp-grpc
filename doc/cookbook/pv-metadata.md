@@ -3,14 +3,12 @@
 Worked examples for the PV Metadata API, part of the Annotation Service: cataloguing PVs with
 aliases, tags, and attributes, and using that metadata to discover PVs and drive data queries.
 
-> **Verified against:** dp-grpc `rel-1.14.0` (Java `com.ospreydcs:dp-grpc:1.14.0`) for all
-> `DpAnnotationService` PV metadata methods.
-> The final section, [Driving a data query from metadata](#driving-a-data-query-from-metadata),
-> uses **Query API V2**, which was added in **1.15.0** and is *not* available in 1.14.
-
 Reference documentation: [PV Metadata API](../../README.md#pv-metadata-api).  Shared response,
 pagination, criteria, and save-semantics rules live in [conventions.md](conventions.md) and are
 not repeated here.
+
+> The final section, [Driving a data query from metadata](#driving-a-data-query-from-metadata),
+> uses **Query API V2**, which was added in 1.15.0 and is not available in earlier releases.
 
 ### Imports used by the examples
 

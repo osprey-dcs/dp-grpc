@@ -4,13 +4,6 @@ Worked examples for registering an ingestion data provider (`registerProvider()`
 Service) and for finding providers and their ingestion statistics after the fact
 (`queryProviders()` and `queryProviderStats()`, Query Service).
 
-> **Verified against:** dp-grpc `rel-1.14.0` (Java `com.ospreydcs:dp-grpc:1.14.0`), and re-checked
-> against the current `1.15.0` tree.  All three methods in this recipe are V1 methods present in
-> 1.14.0; `ingestion.proto` is unchanged between the two releases, and the provider query messages
-> (`QueryProvidersRequest`, `ProviderInfo`, `ProviderStats`) are byte-identical in both.  Nothing
-> here depends on the Query API V2 (`queryBuckets`, `querySamples`, and the `TimeRange` message)
-> added in 1.15.0.
-
 Reference documentation: [Provider API](../../README.md#provider-api) —
 [Provider Registration Methods](../../README.md#provider-registration-methods),
 [Provider Query Methods](../../README.md#provider-query-methods), and

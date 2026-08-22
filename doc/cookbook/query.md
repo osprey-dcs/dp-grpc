@@ -4,17 +4,15 @@ Worked examples for retrieving PV time-series data from the archive with the Que
 choosing between the bucket- and sample-oriented methods, selecting PVs by name, pattern, or
 metadata, paging large results, and migrating an existing V1 client to V2.
 
-> **Verified against:** dp-grpc `rel-1.15.0` (Java `com.ospreydcs:dp-grpc:1.15.0`).
-> The **Query API V2 methods** (`queryBuckets`, `queryBucketsStream`, `querySamples`,
-> `querySamplesStream`) were added in issue #123 and are **new in 1.15.0** — they do **not**
-> exist in `rel-1.14.0`.  The V1 methods (`queryData`, `queryDataStream`,
-> `queryDataBidiStream`, `queryTable`, `queryPvStats`) are present in 1.14.0 and remain
-> available in 1.15.0 for backward compatibility.
-
 Reference documentation: [PV Data Query V2 Methods](../../README.md#pv-data-query-v2-methods),
 [PV Data Query Methods](../../README.md#pv-data-query-methods) (V1), and
 [PV Stats Query Methods](../../README.md#pv-stats-query-methods).  Shared response, paging, and
 criteria rules are in [conventions.md](conventions.md).
+
+> The **Query API V2 methods** (`queryBuckets`, `queryBucketsStream`, `querySamples`,
+> `querySamplesStream`) were added in 1.15.0 and are not available in earlier releases.  The
+> V1 methods (`queryData`, `queryDataStream`, `queryDataBidiStream`, `queryTable`,
+> `queryPvStats`) remain available for backward compatibility.
 
 ### Imports used by the examples
 

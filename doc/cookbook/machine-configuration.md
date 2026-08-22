@@ -3,9 +3,6 @@
 Worked examples for the Machine Configuration and Configuration Activation APIs, part of the
 Annotation Service.
 
-> **Verified against:** dp-grpc `rel-1.14.0` (Java `com.ospreydcs:dp-grpc:1.14.0`).
-> Field sets for these messages are unchanged in 1.15.0.
-
 Reference documentation: [Machine Configuration API](../../README.md#machine-configuration-api)
 and [Configuration Activation API](../../README.md#configuration-activation-api).
 
