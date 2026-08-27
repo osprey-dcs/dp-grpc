@@ -16,6 +16,7 @@ This repo defines the gRPC API for the **Machine Learning Data Platform (MLDP)**
 src/main/proto/       # All proto files (the primary artifact of this repo)
 doc/cookbook/         # Task-oriented worked examples (see "Documentation" below)
 doc/                  # Images and proposed/design proto files
+plan/                 # Official plan documents, one dir per issue (see "Planning Artifacts")
 tools/                # Dev scripts (cookbook snippet checker)
 pom.xml               # Maven build; runs protoc via protobuf-maven-plugin
 ```
@@ -295,6 +296,16 @@ Tagged as `rel-<version>`. Release artifacts (JAR + SHA-256 checksum) are attach
 
 ## Planning Artifacts
 
-Design documents and implementation plans are stored outside the repo in
-`~/dp/dev/tickets/dp-grpc/<N>/`, one directory per GitHub issue number, so they are not lost
-if the repo working copy is clobbered. (Formerly the gitignored `.dev/plan/issue-<N>/`.)
+Two tiers:
+
+- **Drafts and intermediate documents** live outside the repo in `~/dp/dev/tickets/dp-grpc/<N>/`,
+  one directory per GitHub issue number, so they are not lost if the repo working copy is
+  clobbered. Iterate here freely; nothing in this tier is reviewed or version-controlled.
+- **Official plan documents** are version-controlled under `plan/tickets/<N>/` (e.g.,
+  `plan/tickets/132/plan.md`, plus companions such as a dp-service handoff document). Promote a
+  draft here once its decisions are settled, so it gets PR review and a stable URL readable
+  cross-repo.
+
+Committed plans are point-in-time records, not living documents: they describe intent at the
+time of writing, and the protos and `README.md` are authoritative for current behavior. Merged
+plans are not retro-edited except for dated correction notes. See `plan/README.md`.
