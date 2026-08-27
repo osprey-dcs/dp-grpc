@@ -26,7 +26,7 @@ Roughly in the order a new client encounters them.
 | [PV metadata](pv-metadata.md) | Cataloguing PVs, updating without data loss, discovery by tag/attribute/name, alias resolution, and driving queries from metadata |
 | [Machine configuration](machine-configuration.md) | Creating a configuration, recording activations in real time, closing an open activation, listing activation history |
 | [Sample status](sample-status.md) | Labeling samples with status codes (dense and sparse), querying statuses, re-labeling a range, filtering data queries by status |
-| [Data sets, annotations, export](datasets-and-annotations.md) | Defining DataSets, annotating them, publishing Calculations, and exporting to HDF5/CSV/XLSX |
+| [Data sets, annotations, export](datasets-and-annotations.md) | Defining DataSets, annotating them, publishing Calculations, recording column-level provenance, and exporting to HDF5/CSV/XLSX |
 
 ## Calling the API from Python
 

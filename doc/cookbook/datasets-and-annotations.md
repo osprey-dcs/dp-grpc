@@ -4,36 +4,52 @@ Worked examples for defining DataSets, attaching Annotations and derived Calcula
 and exporting the result to HDF5, CSV, or XLSX — all part of the Annotation Service.
 
 Reference documentation: [Data Set API](../../README.md#data-set-api),
-[Data Export Methods](../../README.md#data-export-methods), and
-[Annotation API](../../README.md#annotation-api).
+[Data Export Methods](../../README.md#data-export-methods),
+[Annotation API](../../README.md#annotation-api), and
+[Calculations Get Methods](../../README.md#calculations-get-methods).
 
-Shared response-checking, criteria, and time conventions live in [conventions.md](conventions.md)
-and are not repeated here — but see [Where this area departs from the
-conventions](#where-this-area-departs-from-the-conventions), because these are older methods and
-they do depart in three places.
+Shared response-checking, criteria, paging, and time conventions live in
+[conventions.md](conventions.md) and are not repeated here.
+
+> The DataSet and Annotation APIs were modernized in 1.16.0 and the changes are **breaking**.
+> `getDataSet`, `deleteDataSet`, `getAnnotation`, `deleteAnnotation`, and `getCalculations` are
+> new; `SaveDataSetRequest` no longer embeds a `DataSet`; `Annotation` is now a top-level message
+> and its `comment` field is renamed `description`; query results carry ids rather than embedded
+> DataSet and Calculations content; both queries are paged; and Calculations frames now carry a
+> `common.DataFrame`.  Code written against an earlier release will not compile against these
+> stubs.
 
 ### Imports used by the examples
 
 ```java
+import com.ospreydcs.dp.grpc.v1.annotation.Annotation;
 import com.ospreydcs.dp.grpc.v1.annotation.DataSet;
 import com.ospreydcs.dp.grpc.v1.annotation.DataBlock;
 import com.ospreydcs.dp.grpc.v1.annotation.Calculations;
 import com.ospreydcs.dp.grpc.v1.annotation.SaveDataSetRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.GetDataSetRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.DeleteDataSetRequest;
 import com.ospreydcs.dp.grpc.v1.annotation.QueryDataSetsRequest;
 import com.ospreydcs.dp.grpc.v1.annotation.SaveAnnotationRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.GetAnnotationRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.DeleteAnnotationRequest;
 import com.ospreydcs.dp.grpc.v1.annotation.QueryAnnotationsRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.GetCalculationsRequest;
 import com.ospreydcs.dp.grpc.v1.annotation.ExportDataRequest;
+import com.ospreydcs.dp.grpc.v1.annotation.ExportDataResponse;
 
 import com.ospreydcs.dp.grpc.v1.common.CalculationsSpec;
 import com.ospreydcs.dp.grpc.v1.common.Attribute;
+import com.ospreydcs.dp.grpc.v1.common.ColumnMetadata;
+import com.ospreydcs.dp.grpc.v1.common.ColumnProvenance;
 import com.ospreydcs.dp.grpc.v1.common.DataColumn;
 import com.ospreydcs.dp.grpc.v1.common.DataValue;
+import com.ospreydcs.dp.grpc.v1.common.DataFrame;
 import com.ospreydcs.dp.grpc.v1.common.DataTimestamps;
+import com.ospreydcs.dp.grpc.v1.common.DoubleColumn;
 import com.ospreydcs.dp.grpc.v1.common.SamplingClock;
+import com.ospreydcs.dp.grpc.v1.common.TimeRange;
 import com.ospreydcs.dp.grpc.v1.common.Timestamp;
-
-// read-side Annotation is nested inside the query response
-import com.ospreydcs.dp.grpc.v1.annotation.QueryAnnotationsResponse.AnnotationsResult.Annotation;
 ```
 
 Two things worth noting: `DataBlock` is a top-level message in `annotation.proto`, not nested
@@ -50,11 +66,14 @@ inside `DataSet`; and `CalculationsSpec` lives in `common.proto` while `Calculat
 - [Finding a DataSet someone else made](#finding-a-dataset-someone-else-made)
 - [Attaching a descriptive Annotation](#attaching-a-descriptive-annotation)
 - [Publishing derived Calculations](#publishing-derived-calculations)
+- [Recording column-level provenance](#recording-column-level-provenance)
 - [Deriving Calculations from other Calculations](#deriving-calculations-from-other-calculations)
 - [Catalog search over Annotations](#catalog-search-over-annotations)
+- [Reading an annotation's Calculations](#reading-an-annotations-calculations)
+- [Deleting DataSets and Annotations](#deleting-datasets-and-annotations)
 - [Exporting to CSV or XLSX](#exporting-to-csv-or-xlsx)
 - [Exporting a DataSet plus Calculations to HDF5](#exporting-a-dataset-plus-calculations-to-hdf5)
-- [Where this area departs from the conventions](#where-this-area-departs-from-the-conventions)
+- [Exporting ad-hoc data without saving a DataSet](#exporting-ad-hoc-data-without-saving-a-dataset)
 - [Also worth knowing](#also-worth-knowing)
 
 ## Model
@@ -67,23 +86,32 @@ cover different PV groups over different windows — for example, RF PVs during 
 diagnostics PVs during the flat-top that followed.  A DataSet holds *no data*; it is a pointer
 into the archive, resolved at query or export time.
 
-An **`Annotation`** attaches meaning to one or more DataSets: a `name`, a free-form `comment`,
-`tags` for cataloging, key/value `attributes`, links to other Annotations, and optionally a
+An **`Annotation`** attaches meaning to one or more DataSets: a `name`, free-form `description`
+text, `tags` for cataloging, key/value `attributes`, links to other Annotations, and optionally a
 `Calculations` payload.
 
 **`Calculations`** carries derived values — results you computed, not values the archive
 recorded.  The proto's own analogy is an Excel workbook: the `Calculations` object is the
 workbook, each `Calculations.CalculationsDataFrame` is a worksheet with its own timestamp axis,
-and each `DataColumn` within a frame is a column of computed values.
+and each column within a frame's `DataFrame` is a column of computed values.
 
-Provenance is expressed by association rather than by a dedicated field.  A Calculations derived
-from archive data is recorded by pointing its Annotation at a DataSet describing the source PVs
-and time ranges.  A Calculations derived from *another* Calculations is recorded by listing that
-Annotation's id in `annotationIds`.
+Both entities use **opaque server-generated ids** as their primary key — names are not unique, so
+unlike the PV metadata and Configuration APIs there is no natural key.  `getDataSet`,
+`deleteDataSet`, `getAnnotation`, `deleteAnnotation`, and `getCalculations` all take an id.
+
+Provenance is recorded at two levels.  At the **document** level, an Annotation's `dataSetIds`
+says which archive data a body of work drew on, and its `annotationIds` links to related
+Annotations.  At the **column** level, an individual calculated column's `ColumnMetadata` carries
+a `ColumnProvenance` whose `derivedFrom` list names the specific source PVs or Calculations
+columns it was computed from.  The two are complementary; see
+[Recording column-level provenance](#recording-column-level-provenance).
+
+**Query results carry references, not content.**  `queryAnnotations` returns `dataSetIds` and
+`calculationsId` — ids only.  Fetch DataSet content with one `queryDataSets` call listing the
+ids, and Calculations content with `getCalculations` or `getAnnotation`.
 
 Both `saveDataSet` and `saveAnnotation` are **id-driven upserts**: an empty `id` creates, a
-populated `id` updates.  There is no separate create/update method, and no delete method for
-either type.
+populated `id` replaces in full.
 
 ## Defining a DataSet for a region of interest
 
@@ -109,55 +137,63 @@ interval is half-open the way `TimeRange` is; that is genuinely unspecified.  If
 exactly on `endTime` matters to your analysis, do not rely on either interpretation — nudge the
 boundary rather than guessing.
 
-### 2. Build the DataSet, leaving `id` unset
+### 2. Save it, leaving `id` unset
 
-```java
-DataSet dataSet = DataSet.newBuilder()
-    .setName("2026-07-14 ramp study")       // required
-    .setOwnerId("cmcchesney")               // required
-    .setDescription("RF ramp plus flat-top diagnostics for shift 2")
-    .addAllDataBlocks(List.of(ramp, flatTop))   // required
-    .build();
-```
-
-### 3. Save it and retain the id
+`SaveDataSetRequest` lists the DataSet's client-settable fields directly — it does not embed a
+`DataSet` message.  That is deliberate: `DataSet` now carries server-set audit timestamps, which
+must not be accepted as input.
 
 ```java
 SaveDataSetRequest request = SaveDataSetRequest.newBuilder()
-    .setDataSet(dataSet)
+    .setName("2026-07-14 ramp study")           // required
+    .setOwnerId("cmcchesney")                   // required
+    .setDescription("RF ramp plus flat-top diagnostics for shift 2")
+    .addAllDataBlocks(List.of(ramp, flatTop))   // required
+    .addAllTags(List.of("ramp-study", "shift-2"))
+    .addAttributes(Attribute.newBuilder().setName("runNumber").setValue("4471"))
+    .setModifiedBy("cmcchesney")
     .build();
 
 // after checking hasExceptionalResult()
 String dataSetId = response.getSaveDataSetResult().getDataSetId();
 ```
 
-`SaveDataSetRequest` is the one request in this area that embeds the full domain message rather
-than listing flat fields.  `dataSetId` is the handle for *every* later step — annotating,
-querying, and exporting all take it — so persist it rather than re-deriving it by search.
+`dataSetId` is the handle for *every* later step — annotating, retrieving, exporting, and
+deleting all take it — so persist it rather than re-deriving it by search.
+
+`tags` and `attributes` give DataSets the same cataloging vocabulary the other entities have, and
+both are searchable via `queryDataSets`.
 
 ## Updating an existing DataSet
 
-There is no `patchDataSet`.  To change a DataSet you re-save it with its `id` populated, and the
-save is **full-replace**: the `dataBlocks` list you send *replaces* the stored one, it does not
-merge with it.
+There is no implemented `patchDataSet` — the RPC exists as a reserved placeholder and returns an
+error today.  To change a DataSet you re-save it with its `id` populated, and the save is
+**full-replace**: the `dataBlocks` list you send *replaces* the stored one, it does not merge
+with it.
 
 ```java
 // 1. fetch the current DataSet
-DataSet existing = queryById(dataSetId);
+DataSet existing = getDataSetById(dataSetId);
 
-// 2. rebuild with the id set and the COMPLETE new block list
-DataSet updated = DataSet.newBuilder()
-    .setId(existing.getId())                        // presence of id => update
+// 2. rebuild with the id set and the COMPLETE new state
+SaveDataSetRequest updated = SaveDataSetRequest.newBuilder()
+    .setId(existing.getId())                          // presence of id => replace
     .setName(existing.getName())
     .setOwnerId(existing.getOwnerId())
-    .setDescription(existing.getDescription())      // omit and it is cleared
-    .addAllDataBlocks(existing.getDataBlocksList())  // carry forward
-    .addDataBlocks(newBlock)                         // then extend
+    .setDescription(existing.getDescription())        // omit and it is cleared
+    .addAllDataBlocks(existing.getDataBlocksList())   // carry forward
+    .addDataBlocks(newBlock)                          // then extend
+    .addAllTags(existing.getTagsList())               // omit and these are cleared too
+    .addAllAttributes(existing.getAttributesList())
+    .setModifiedBy("cmcchesney")
     .build();
 ```
 
 The read-modify-write is not optional.  Sending only the block you want to add silently discards
 the others — see [Save semantics](conventions.md#save-semantics-full-replace).
+
+Do not copy `createdTime` or `updatedTime` across; they are server-set and the request has no
+fields for them.
 
 Because Annotations reference DataSets by id, an update is visible to every Annotation already
 pointing at it.  Widening a DataSet after it has been annotated changes what those Annotations
@@ -166,24 +202,30 @@ describe; if that is not what you want, create a new DataSet instead.
 ## Finding a DataSet someone else made
 
 Search before creating, so that shared regions of interest do not proliferate as near-duplicates.
-`queryDataSets` supports four criteria, each carried by exactly one member of the
+`queryDataSets` supports seven criteria, each carried by exactly one member of the
 `QueryDataSetsCriterion` oneof:
 
-| Criterion | Field | Matches |
+| Criterion | Field(s) | Matches |
 |---|---|---|
-| `IdCriterion` | `id` | DataSet id |
-| `OwnerCriterion` | `ownerId` | owner |
-| `TextCriterion` | `text` | full text over `name` and `description` |
-| `PvNameCriterion` | `name` | a PV name appearing in any `DataBlock` |
+| `IdCriterion` | `ids` | DataSet id |
+| `OwnerCriterion` | `ownerIds` | owner |
+| `NameCriterion` | `exact`, `prefix`, `contains` | name |
+| `TextCriterion` | `text` | full text over the indexed fields (`name`, `description`) |
+| `PvNameCriterion` | `names` | a PV name appearing in any `DataBlock` |
+| `TagsCriterion` | `values` | tag value |
+| `AttributesCriterion` | `key`, `values` | attribute key and optional value(s) |
+
+Criteria in the list are ANDed; values within one criterion are ORed.
 
 ```java
 QueryDataSetsRequest.newBuilder()
     .addCriteria(QueryDataSetsRequest.QueryDataSetsCriterion.newBuilder()
         .setPvNameCriterion(QueryDataSetsRequest.QueryDataSetsCriterion.PvNameCriterion
-            .newBuilder().setName("LINAC:RF:AMP")))
+            .newBuilder().addNames("LINAC:RF:AMP")))
     .addCriteria(QueryDataSetsRequest.QueryDataSetsCriterion.newBuilder()
         .setOwnerCriterion(QueryDataSetsRequest.QueryDataSetsCriterion.OwnerCriterion
-            .newBuilder().setOwnerId("cmcchesney")))
+            .newBuilder().addOwnerIds("cmcchesney")))
+    .setLimit(50)
     .build();
 ```
 
@@ -194,37 +236,48 @@ the PV name alone and says nothing about time.
 There is no time-range criterion for DataSets, so time filtering is a client-side pass over the
 returned blocks.
 
+Results are paged and ordered by `id` ascending; follow `nextPageToken` to retrieve them all.  An
+unset `limit` means a server-configured default page size, **not** an unbounded result — see
+[Pagination](conventions.md#pagination).
+
+When you already have the id, `getDataSet` is the direct route:
+
+```java
+GetDataSetRequest.newBuilder().setDataSetId(dataSetId).build();
+// response.getGetDataSetResult().getDataSet()
+```
+
 ## Attaching a descriptive Annotation
 
-Unlike `saveDataSet`, `SaveAnnotationRequest` is **flat** — it does not embed an Annotation
-message.  Required fields are `ownerId`, at least one `dataSetIds` entry, and `name`.
+Required fields are `ownerId`, at least one `dataSetIds` entry, and `name`.
 
 ```java
 SaveAnnotationRequest.newBuilder()
     .setOwnerId("cmcchesney")
     .addDataSetIds(dataSetId)                  // required, at least one
     .setName("RF trip during ramp")
-    .setComment("Amplitude interlock fired at t1; see attributes for run number.")
+    .setDescription("Amplitude interlock fired at t1; see attributes for run number.")
     .addAllTags(List.of("rf-trip", "shift-2", "reviewed"))
     .addAttributes(Attribute.newBuilder().setName("runNumber").setValue("4471"))
     .addAttributes(Attribute.newBuilder().setName("experimentId").setValue("E-2026-113"))
+    .setModifiedBy("cmcchesney")
     .build();
 
 // after checking hasExceptionalResult()
 String annotationId = response.getSaveAnnotationResult().getAnnotationId();
 ```
 
-`Attribute` uses **`name`** for the key, not `key`.  The query-side
-`AttributesCriterion` uses `key`.  Mixing these two up is the easiest mistake to make in this
-area, and because both are plain strings the compiler will not catch it.
+`Attribute` uses **`name`** for the key, not `key`.  The query-side `AttributesCriterion` uses
+`key`.  Mixing these two up is the easiest mistake to make in this area, and because both are
+plain strings the compiler will not catch it.
 
 Use `tags` for values you will search by exactly, and `attributes` for structured facts that have
-a key.  `comment` and `name` are the client-settable fields reachable by the Annotation
+a key.  `description` and `name` are the client-settable fields reachable by the Annotation
 `TextCriterion` free-text search.
 
 ## Publishing derived Calculations
 
-This is the level-1 provenance chain: you computed something from raw PV data and want the result
+This is document-level provenance: you computed something from raw PV data and want the result
 stored alongside a record of exactly which archive data it came from.
 
 ### 1. Create a DataSet describing the *inputs*
@@ -234,40 +287,61 @@ DataSet is the provenance record; skipping it leaves the calculation unattributa
 
 ### 2. Build the Calculations
 
+A `CalculationsDataFrame` is a name plus a `common.DataFrame` — the same message used as the unit
+of ingestion.  Calculation output therefore uses the same typed column types as ingested data:
+
 ```java
-DataColumn rmsColumn = DataColumn.newBuilder()
+DoubleColumn rmsColumn = DoubleColumn.newBuilder()
     .setName("rf_amp_rms")                            // calculation name, not a PV name
-    .addDataValues(DataValue.newBuilder().setDoubleValue(12.7))
-    .addDataValues(DataValue.newBuilder().build())    // <- MISSING: no oneof member set
-    .addDataValues(DataValue.newBuilder().setDoubleValue(12.9))
+    .addAllValues(List.of(12.7, 12.8, 12.9))
     .build();
 
 Calculations calculations = Calculations.newBuilder()
     .addCalculationDataFrames(Calculations.CalculationsDataFrame.newBuilder()
-        .setName("rf-statistics")                     // required frame name; see note below
-        .setDataTimestamps(DataTimestamps.newBuilder()
-            .setSamplingClock(SamplingClock.newBuilder()
-                .setStartTime(ts(t0))
-                .setPeriodNanos(1_000_000_000L)
-                .setCount(3)))
-        .addDataColumns(rmsColumn))
+        .setName("rf-statistics")                     // required; distinct within the Calculations
+        .setFrame(DataFrame.newBuilder()
+            .setDataTimestamps(DataTimestamps.newBuilder()
+                .setSamplingClock(SamplingClock.newBuilder()
+                    .setStartTime(ts(t0))
+                    .setPeriodNanos(1_000_000_000L)
+                    .setCount(3)))
+            .addDoubleColumns(rmsColumn)))
     .build();
 ```
 
-Three things to get right here:
+Things to get right here:
 
 - **The field is `calculationDataFrames` (singular "calculation"), the message type is
   `CalculationsDataFrame` (plural).**  Java: `addCalculationDataFrames()`.
-- **Every column must have exactly one `DataValue` per timestamp** defined by the frame's
-  `DataTimestamps` — `SamplingClock.count`, or the size of the `TimestampList`.  Pad with empty
-  `DataValue`s; do not shorten the list.
-- **`DataColumn` is deprecated for ingestion but is the correct type here.**  That is deliberate:
-  a `DataValue` with no oneof member set means "no result at this timestamp", and the dense
-  column types have no way to express that.  On the read side, detect it with
-  `value.getValueCase() == DataValue.ValueCase.VALUE_NOT_SET`.
+- **The frame's columns live on its `DataFrame`, not on the `CalculationsDataFrame`.**  Set the
+  timestamps and the columns on the `DataFrame` you pass to `setFrame()`.
+- **Every column must have exactly one value per timestamp** defined by the frame's
+  `DataTimestamps` — `SamplingClock.count`, or the size of the `TimestampList`.
+- **Frame names must be distinct within a Calculations object.**  Frame names address frames in
+  the `CalculationsSpec` filter and in provenance links, so duplicates are unaddressable and are
+  rejected.
 
 Use a `SamplingClock` when the output is uniformly spaced and a `TimestampList` when it is not
 (event-triggered results, or output that inherits irregular input timestamps).
+
+**Sparse or missing values.**  A calculation that produces results at a different or sparser
+cadence than its siblings gets **its own frame with its own time axis** rather than a dense
+column padded with gaps — frames are cheap, and every column is dense on its own frame's axis.
+When values are genuinely missing at some timestamps of a shared axis, the legacy `DataColumn`
+type remains available through `DataFrame.dataColumns` as an escape hatch, because an unset
+`DataValue` oneof expresses "no result here" and the dense typed columns cannot:
+
+```java
+DataColumn sparse = DataColumn.newBuilder()
+    .setName("rf_amp_peak")
+    .addDataValues(DataValue.newBuilder().setDoubleValue(14.2))
+    .addDataValues(DataValue.newBuilder().build())    // <- MISSING: no oneof member set
+    .addDataValues(DataValue.newBuilder().setDoubleValue(14.4))
+    .build();
+```
+
+On the read side, detect it with `value.getValueCase() == DataValue.ValueCase.VALUE_NOT_SET`.
+Prefer the typed columns otherwise.
 
 ### 3. Save the Annotation carrying the Calculations
 
@@ -276,32 +350,84 @@ SaveAnnotationRequest.newBuilder()
     .setOwnerId("cmcchesney")
     .addDataSetIds(inputDataSetId)          // the provenance link to archive data
     .setName("RF amplitude RMS, shift 2")
-    .setComment("1 Hz RMS over LINAC:RF:AMP")
+    .setDescription("1 Hz RMS over LINAC:RF:AMP")
     .setCalculations(calculations)
+    .build();
+
+// after checking hasExceptionalResult()
+String annotationId   = response.getSaveAnnotationResult().getAnnotationId();
+String calculationsId = response.getSaveAnnotationResult().getCalculationsId();
+```
+
+`saveAnnotation` is the only write path for Calculations — there is no `saveCalculations`.  The
+`id` field of the `Calculations` object you send is ignored; the server assigns it and returns it
+as `calculationsId`, which is the key `getCalculations`, `CalculationsSpec`, and provenance links
+all take.
+
+> **Full-replace applies to calculations.**  Re-saving an Annotation without its `calculations`
+> field **clears the stored Calculations**.  When updating an annotation that carries
+> calculations, read it back with `getAnnotation` and resend them along with your changes.
+
+## Recording column-level provenance
+
+Document-level provenance says which DataSet a body of work drew on.  Column-level provenance
+says which specific columns *this* column was computed from, in a form a client can traverse.  It
+rides in the `ColumnMetadata` every column message carries:
+
+```java
+ColumnProvenance provenance = ColumnProvenance.newBuilder()
+    .setProcess("1 Hz RMS")
+    .addDerivedFrom(ColumnProvenance.ColumnSource.newBuilder()
+        .setPvName("LINAC:RF:AMP")
+        .setTimeRange(TimeRange.newBuilder()
+            .setBeginTime(ts(t0))
+            .setEndTime(ts(t1))))
+    .build();
+
+DoubleColumn rmsColumn = DoubleColumn.newBuilder()
+    .setName("rf_amp_rms")
+    .addAllValues(List.of(12.7, 12.8, 12.9))
+    .setMetadata(ColumnMetadata.newBuilder().setProvenance(provenance))
     .build();
 ```
 
-### 4. Retrieve the server-assigned `Calculations.id`
-
-`saveAnnotation` returns only `annotationId` — it does **not** return the Calculations id.  But
-`exportData` needs that id.  The only way to get it is to query the annotation back:
+To link to a column of another Calculations object rather than to an archived PV, set the other
+arm of the `origin` oneof:
 
 ```java
-Annotation annotation = queryAnnotationById(annotationId);
-String calculationsId = annotation.getCalculations().getId();
+ColumnProvenance.ColumnSource.newBuilder()
+    .setCalculationsColumn(ColumnProvenance.CalculationsColumn.newBuilder()
+        .setCalculationsId(sourceCalculationsId)
+        .setFrameName("rf-statistics")
+        .setColumnName("rf_amp_rms"))
+    .build();
 ```
 
-Do this once and persist `calculationsId` alongside `annotationId`; otherwise every export
-becomes a two-round-trip operation.
+Notes:
+
+- The oneof is named **`origin`**, not `source` — `ColumnProvenance.source` is the separate
+  free-form string field, which is retained alongside these links.  Human description and
+  machine-traversable link are different jobs.
+- `derivedFrom` is repeated because a derived column may have several inputs, such as a
+  difference of two PVs.
+- The per-source `timeRange` is optional and matters mainly for aggregations, whose input
+  interval is not implied by the output column's own timestamps — a daily mean stamped at
+  midnight consumes the preceding day.
+- **Links are stored, never validated.**  Nothing checks that the target exists, and deleting a
+  referenced record leaves the link dangling.  A link that resolves to nothing means the target
+  was deleted; readers must tolerate that.
+- The same mechanism works for ingestion-side derived data, since `ColumnMetadata` is carried by
+  every column message type.  As a rule of thumb: one-time analysis products belong in Annotation
+  Calculations; continuously-computed derived streams belong in ingestion as ordinary PVs.
 
 ## Deriving Calculations from other Calculations
 
-Level-2 provenance: second-order analysis built on someone else's published calculations.
+Second-order analysis built on someone else's published calculations.
 
 1. Locate the source Annotation — `IdCriterion` if you have the id, otherwise `TagsCriterion`,
-   `TextCriterion`, or `OwnerCriterion`.
-2. Read its frames and columns from
-   `response.getAnnotationsResult().getAnnotationsList()`, via `getCalculations()`.
+   `NameCriterion`, `TextCriterion`, or `OwnerCriterion`.
+2. Read its calculations with `getCalculations(calculationsId)`, using the `calculationsId` the
+   query returned.
 3. Compute the new values and build a new `Calculations` object as above.
 4. Save an Annotation that links back:
 
@@ -309,7 +435,7 @@ Level-2 provenance: second-order analysis built on someone else's published calc
 SaveAnnotationRequest.newBuilder()
     .setOwnerId("analyst")
     .addDataSetIds(originalDataSetId)          // still REQUIRED, even here
-    .addAnnotationIds(sourceAnnotationId)      // <- the provenance link
+    .addAnnotationIds(sourceAnnotationId)      // <- document-level provenance link
     .setName("Normalized RF amplitude RMS")
     .setCalculations(derivedCalculations)
     .build();
@@ -319,36 +445,118 @@ SaveAnnotationRequest.newBuilder()
 Reuse the source Annotation's DataSet id — it already names the underlying archive data, so the
 chain stays intact.
 
+For a precise record of *which columns* fed the new ones, add
+[column-level provenance](#recording-column-level-provenance) with a `CalculationsColumn` source
+alongside the `annotationIds` link.  The document link says "this work built on that work"; the
+column links say exactly how.
+
 There is no server-side traversal of the provenance graph.  `annotationIds` is a plain list of
-ids; walking a multi-level chain means issuing one `queryAnnotations` per level with an
-`IdCriterion`.
+ids; walking a multi-level chain means one `queryAnnotations` per level with an `IdCriterion`, or
+one `getAnnotation` per id.
 
 ## Catalog search over Annotations
 
-`queryAnnotations` offers seven criteria via the `QueryAnnotationsCriterion` oneof:
-`IdCriterion.id`, `OwnerCriterion.ownerId`, `DataSetsCriterion.dataSetId`,
-`AnnotationsCriterion.annotationId`, `TextCriterion.text` (free-text search over the `name` and
-`comment` fields), `TagsCriterion.tagValue`, and `AttributesCriterion` (`key` plus `value`).
+`queryAnnotations` offers eight criteria via the `QueryAnnotationsCriterion` oneof:
+
+| Criterion | Field(s) | Matches |
+|---|---|---|
+| `IdCriterion` | `ids` | Annotation id |
+| `OwnerCriterion` | `ownerIds` | owner |
+| `DataSetsCriterion` | `dataSetIds` | id of an associated DataSet |
+| `AnnotationsCriterion` | `annotationIds` | id of an associated Annotation |
+| `NameCriterion` | `exact`, `prefix`, `contains` | name |
+| `TextCriterion` | `text` | full text over the indexed fields (`name`, `description`) |
+| `TagsCriterion` | `values` | tag value |
+| `AttributesCriterion` | `key`, `values` | attribute key and optional value(s) |
 
 ```java
 QueryAnnotationsRequest.newBuilder()
     .addCriteria(QueryAnnotationsRequest.QueryAnnotationsCriterion.newBuilder()
         .setTagsCriterion(QueryAnnotationsRequest.QueryAnnotationsCriterion.TagsCriterion
-            .newBuilder().setTagValue("rf-trip")))       // field is tagValue, not tag
+            .newBuilder().addValues("rf-trip")))
     .addCriteria(QueryAnnotationsRequest.QueryAnnotationsCriterion.newBuilder()
         .setAttributesCriterion(QueryAnnotationsRequest.QueryAnnotationsCriterion
             .AttributesCriterion.newBuilder()
-                .setKey("runNumber").setValue("4471")))  // here the field IS 'key'
+                .setKey("runNumber").addValues("4471")))
+    .setLimit(50)
     .build();
 ```
 
-The most useful property of this result is that **the associated DataSets arrive fully
-populated**.  `Annotation.dataSets` carries the complete `DataSet` contents alongside the bare
-`dataSetIds`, so a catalog browser can render each annotation's PV list and time ranges without a
-second `queryDataSets` round trip.
+Criteria in the list are ANDed and values within one criterion are ORed, so the query above wants
+annotations that carry the `rf-trip` tag **and** have `runNumber=4471`.  Two tags in one
+`TagsCriterion` means "either tag"; to require both, add two separate `TagsCriterion` entries.
+
+Results are paged and ordered by `id` ascending; follow `nextPageToken`.
+
+**Results carry ids, not embedded content.**  Each returned `Annotation` has `dataSetIds` and
+`calculationsId` populated and its `calculations` field empty.  To render a catalog listing with
+each annotation's PV list and time ranges, gather the ids across the page and issue **one**
+`queryDataSets` with an `IdCriterion`:
+
+```java
+List<String> ids = response.getAnnotationsResult().getAnnotationsList().stream()
+    .flatMap(a -> a.getDataSetIdsList().stream())
+    .distinct()
+    .toList();
+
+QueryDataSetsRequest.newBuilder()
+    .addCriteria(QueryDataSetsRequest.QueryDataSetsCriterion.newBuilder()
+        .setIdCriterion(QueryDataSetsRequest.QueryDataSetsCriterion.IdCriterion
+            .newBuilder().addAllIds(ids)))
+    .build();
+```
+
+That is one round trip for the whole page.  Fetching them with a `getDataSet` per id instead is
+the N+1 this design exists to avoid.
 
 `DataSetsCriterion` runs the relationship the other way: given a DataSet id, find everything that
-annotates it.  That is the query behind "what does anyone know about this region of the archive".
+annotates it.  That is the query behind "what does anyone know about this region of the archive",
+and it is also how you find the annotations that block a `deleteDataSet`.
+
+## Reading an annotation's Calculations
+
+`calculationsId` doubles as the presence indicator — an empty one means the Annotation has no
+calculations, and a non-empty one paired with an empty `calculations` field means the content was
+simply not fetched by the method you called.
+
+Two ways to get the content:
+
+```java
+// Just the calculations, no annotation payload -- the click-through case.
+GetCalculationsRequest.newBuilder().setCalculationsId(calculationsId).build();
+// response.getGetCalculationsResult().getCalculations()
+
+// The whole annotation, with calculations populated inline.
+GetAnnotationRequest.newBuilder().setAnnotationId(annotationId).build();
+// response.getGetAnnotationResult().getAnnotation().getCalculations()
+```
+
+`getAnnotation` is the only method that returns Calculations content inside an `Annotation`.  It
+still returns `dataSetIds` as ids.
+
+Calculations have no save, delete, or query method of their own: they are written through
+`saveAnnotation`, deleted with their Annotation, and discovered through `queryAnnotations`.  Only
+retrieval has a standalone path, so that a client holding a `calculationsId` need not fetch an
+annotation to use it.
+
+## Deleting DataSets and Annotations
+
+```java
+DeleteAnnotationRequest.newBuilder().setAnnotationId(annotationId).build();
+DeleteDataSetRequest.newBuilder().setDataSetId(dataSetId).build();
+```
+
+The two have deliberately different referential rules:
+
+- **`deleteDataSet` is rejected while any Annotation references the DataSet** in its
+  `dataSetIds`.  Delete or update those annotations first; find them with `queryAnnotations` and
+  a `DataSetsCriterion`.  This is a containment-strength association — an annotation without its
+  subject is meaningless.
+- **`deleteAnnotation` is not blocked by anything.**  Other annotations' `annotationIds` and any
+  `ColumnProvenance.derivedFrom` links into its calculations are soft associations and are left
+  to dangle.  Deleting an Annotation deletes its Calculations with it.
+
+So the order for tearing down a chain is: annotations first, then the DataSets they referenced.
 
 ## Exporting to CSV or XLSX
 
@@ -364,16 +572,19 @@ String path = result.getFilePath();     // always populated
 String url  = result.getFileUrl();      // may be empty -- see below
 ```
 
-Always set an explicit `outputFormat`.  Its inline proto comment says "Optional", but
-`EXPORT_FORMAT_UNSPECIFIED` (the zero value, and therefore the default if you omit the field) is
-documented as causing the request to be **rejected**.  In practice the field is required.
+Always set an explicit `outputFormat`.  `EXPORT_FORMAT_UNSPECIFIED` is the zero value, and
+therefore the default if you omit the field, and it causes the request to be rejected.
 
 `fileUrl` is populated only when the deployment is configured to publish exported files over
 HTTP.  `filePath` is the reliable field; treat an empty `fileUrl` as normal, not as an error.
 
-The tabular formats (CSV, XLSX) produce one row per timestamp across the union of the DataSet's
-columns.  HDF5 preserves the bucketed structure instead — prefer it when the DataSet spans many
-PVs with differing sampling rates, where a tabular flattening would be mostly empty cells.
+The tabular formats (CSV, XLSX) produce one row per timestamp across the union of the exported
+columns.  HDF5 preserves the bucketed structure instead — prefer it when the data spans many PVs
+with differing sampling rates, where a tabular flattening would be mostly empty cells.
+
+> **Tabular formats are scalar-only.**  CSV and XLSX can only represent scalar columns.  Data
+> containing array, image, or struct columns — including a Calculations frame using those typed
+> columns — exports to HDF5, but a CSV or XLSX request for it is rejected.
 
 ## Exporting a DataSet plus Calculations to HDF5
 
@@ -397,10 +608,8 @@ ExportDataRequest.newBuilder()
 ```
 
 `dataFrameColumns` is an optional filter.  **Omit the map entirely to include all frames and all
-columns.**  Its key is the `CalculationsDataFrame` *name*, and because a map key is by
-construction unique, addressing is by name only — there is no index-based addressing.  The proto
-does not explicitly require frame names to be distinct within a `Calculations`, but duplicate
-names would be unaddressable through this filter, so keep them distinct in practice.
+columns.**  Its key is the `CalculationsDataFrame` *name* — which is why frame names must be
+distinct within a Calculations object.
 
 Two things to be aware of when both a DataSet and Calculations are exported to a tabular format.
 Neither is specified by the proto — both are server-side behaviors, so verify them against your
@@ -415,49 +624,46 @@ deployment before depending on them:
 
 ### Exporting Calculations alone
 
-Leave `dataSetId` empty and set only `calculationsSpec`.  The message-level proto comment is
-explicit that `dataSetId` and `calculationsSpec` are each optional and that one or the other must
-be present; the inline comment on `dataSetId` saying "Required" is stale.  This is the right call
-for sharing derived results without re-exporting bulk archive data.
+Leave `dataSetId` empty and set only `calculationsSpec`.  This is the right call for sharing
+derived results without re-exporting bulk archive data.
 
-## Where this area departs from the conventions
+## Exporting ad-hoc data without saving a DataSet
 
-These are older methods than the CRUD families described in [conventions.md](conventions.md), and
-three differences will bite you:
+For a one-off export that does not warrant a saved DataSet, put `DataBlock`s directly on the
+request.  The server treats them as a transient dataset:
 
-**No pagination.**  Neither `queryDataSets` nor `queryAnnotations` has `limit`, `pageToken`, or
-`nextPageToken`.  Every match comes back in a single response.  Constrain your criteria — an
-`OwnerCriterion` alone against a busy archive can return a very large message.
+```java
+ExportDataRequest.newBuilder()
+    .addDataBlocks(DataBlock.newBuilder()
+        .setBeginTime(ts(t0))
+        .setEndTime(ts(t1))
+        .addAllPvNames(List.of("LINAC:RF:AMP", "LINAC:RF:PHASE")))
+    .setOutputFormat(ExportDataRequest.ExportOutputFormat.EXPORT_FORMAT_CSV)
+    .build();
+```
 
-**Empty results may not follow the empty-list convention.**  The project-wide rule is that an
-empty query result is a success payload with an empty list.  But the `QueryDataSetsResponse` and
-`QueryAnnotationsResponse` proto comments both say the payload is an `ExceptionalResult` when
-"the query result is empty".  These contradict each other and we could not determine from the
-protos alone which the server actually does.  Write callers that tolerate **both**: check
-`hasExceptionalResult()` first, and also handle a zero-length list.
+`dataSetId`, `dataBlocks`, and `calculationsSpec` are each optional individually, but **at least
+one must be present** or the request is rejected.  They may be combined freely — an export can
+draw on a saved DataSet, some ad-hoc blocks, and a Calculations object at once.
 
-**Criteria combination is ambiguously documented.**  Within `QueryDataSetsCriterion`, the
-`IdCriterion` and `OwnerCriterion` comments say "And" while `TextCriterion` and `PvNameCriterion`
-say "Or".  The message-level comment and the README both describe compound queries in AND terms
-("an `OwnerCriterion` and `TextCriterion` to find DataSets for the specified owner containing the
-specified text").  The per-criterion "Or" comments appear stale, but we cannot confirm that from
-the protos.  If a query's exact semantics matter, verify empirically against your deployment
-rather than relying on either reading.
+Use `dataSetId` when the selection is worth keeping, sharing, or annotating; use `dataBlocks`
+when it is genuinely throwaway.  Ad-hoc blocks leave no record of what was exported.
 
 ## Also worth knowing
 
-- **There is no delete for DataSets or Annotations**, and no `patch*` for either.  Records
-  accumulate; plan your naming and tagging accordingly.
 - **`RESULT_STATUS_REJECT` is the zero value** of `ExceptionalResultStatus`, so a
   default-constructed `ExceptionalResult` reads as a rejection.  Detect failure with the oneof
   case (`hasExceptionalResult()`), never by comparing the status enum against zero.
 - **The oneof getters return default instances rather than throwing.**  Reading
   `getSaveDataSetResult()` on an error response yields an empty result with a blank id, not an
   exception — which is exactly how a missing check turns into a confusing downstream failure.
-- **Field numbers are not symmetric between the save and query sides.**  `name` is field 4 in
-  `SaveAnnotationRequest` and field 5 in `QueryAnnotationsResponse.AnnotationsResult.Annotation`;
-  `calculations` is 10 and 11 respectively.  The two messages are not wire-compatible and there
-  is no top-level `Annotation` message — the read-side type is the nested one.
-- **Stale proto comments in `DataSet`.**  The `id` comment refers to a `createDataSet()` method
-  and a `dataSetId` field, neither of which exists.  The method is `saveDataSet()` and the field
-  is `id`.
+- **An empty query result is an empty list, not an `ExceptionalResult`.**  This holds for both
+  `queryDataSets` and `queryAnnotations`, as it does across the API.
+- **`patchDataSet` and `patchAnnotation` exist but are not implemented.**  They are reserved
+  placeholders per the standard CRUD pattern and return an error today; use the full-replace
+  `save*` methods.
+- **There is deliberately no `bulkSave*` for either entity**, unlike PV metadata and
+  configuration activations — DataSets and Annotations are not bulk-imported from external
+  systems.
+- **`ownerId` and `modifiedBy` are different fields with different jobs.**  `ownerId` is
+  ownership and does not change on edit; `modifiedBy` records who performed the most recent save.

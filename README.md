@@ -91,7 +91,7 @@ The table below gives an overview of the Data Platform API organized by service.
 |------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Ingestion        | [Provider&nbsp;registration](#provider-registration-methods)<br>[PV&nbsp;data&nbsp;ingestion](#pv-data-ingestion-methods)<br>[PV&nbsp;data&nbsp;subscription](#pv-data-subscription-methods)<br>[Request&nbsp;Status&nbsp;query](#request-status-query-methods)<br>                                                                                                                                                                      |
 | Query            | [PV&nbsp;data&nbsp;query](#pv-data-query-methods)<br>[PV&nbsp;data&nbsp;query&nbsp;V2](#pv-data-query-v2-methods)<br>[PV&nbsp;stats&nbsp;query](#pv-stats-query-methods)<br>[Provider&nbsp;query](#provider-query-methods)<br>[Provider&nbsp;stats&nbsp;query](#provider-stats-query-methods)<br>                                                                                                                                                                                                        |
-| Annotation       | [PV&nbsp;metadata&nbsp;save](#pv-metadata-save-methods)<br>[PV&nbsp;metadata&nbsp;query](#pv-metadata-query-methods)<br>[PV&nbsp;metadata&nbsp;get](#pv-metadata-get-methods)<br>[PV&nbsp;metadata&nbsp;delete](#pv-metadata-delete-methods)<br>[Configuration&nbsp;save](#configuration-save-methods)<br>[Configuration&nbsp;query](#configuration-query-methods)<br>[Configuration&nbsp;Activation&nbsp;save](#configuration-activation-save-methods)<br>[Configuration&nbsp;Activation&nbsp;query](#configuration-activation-query-methods)<br>[Sample&nbsp;Status&nbsp;save](#sample-status-save-methods)<br>[Sample&nbsp;Status&nbsp;query](#sample-status-query-methods)<br>[Sample&nbsp;Status&nbsp;delete](#sample-status-delete-methods)<br>[Data&nbsp;Set&nbsp;save](#data-set-save-methods)<br>[Data&nbsp;Set&nbsp;query](#data-set-query-methods)<br>[Data&nbsp;export](#data-export-methods)<br>[Annotation&nbsp;save](#annotation-save-methods)<br>[Annotation&nbsp;query](#annotation-query-methods)<br> |
+| Annotation       | [PV&nbsp;metadata&nbsp;save](#pv-metadata-save-methods)<br>[PV&nbsp;metadata&nbsp;query](#pv-metadata-query-methods)<br>[PV&nbsp;metadata&nbsp;get](#pv-metadata-get-methods)<br>[PV&nbsp;metadata&nbsp;delete](#pv-metadata-delete-methods)<br>[Configuration&nbsp;save](#configuration-save-methods)<br>[Configuration&nbsp;query](#configuration-query-methods)<br>[Configuration&nbsp;Activation&nbsp;save](#configuration-activation-save-methods)<br>[Configuration&nbsp;Activation&nbsp;query](#configuration-activation-query-methods)<br>[Sample&nbsp;Status&nbsp;save](#sample-status-save-methods)<br>[Sample&nbsp;Status&nbsp;query](#sample-status-query-methods)<br>[Sample&nbsp;Status&nbsp;delete](#sample-status-delete-methods)<br>[Data&nbsp;Set&nbsp;save](#data-set-save-methods)<br>[Data&nbsp;Set&nbsp;query](#data-set-query-methods)<br>[Data&nbsp;Set&nbsp;get](#data-set-get-methods)<br>[Data&nbsp;Set&nbsp;delete](#data-set-delete-methods)<br>[Data&nbsp;export](#data-export-methods)<br>[Annotation&nbsp;save](#annotation-save-methods)<br>[Annotation&nbsp;query](#annotation-query-methods)<br>[Annotation&nbsp;get](#annotation-get-methods)<br>[Annotation&nbsp;delete](#annotation-delete-methods)<br>[Calculations&nbsp;get](#calculations-get-methods)<br> |
 | Ingestion Stream | [Data&nbsp;Event&nbsp;subscription](#pv-data-event-subscription-methods)<br>                                                                                                                                                                                                                                                                                                                                                             |
 
 ---
@@ -108,8 +108,9 @@ The table below gives an overview of the Data Platform API organized by entity. 
 | Machine Configuration | A reusable named definition of a machine mode or operational state (e.g., `TopOff`, `3GeV`, `UserOps`), belonging to a category, with optional parent hierarchy, tags, and attributes.  Used to describe the accelerator state for interpretation of associated PV data. | [Configuration&nbsp;save](#configuration-save-methods)<br>[Configuration&nbsp;query](#configuration-query-methods)<br>                                                                                                                                                                                    |
 | Configuration Activation | A time interval during which a Machine Configuration was active.  Supports both live recording and retroactive loading from operational calendars.  Multiple configurations may be active simultaneously if they belong to different categories. | [Configuration&nbsp;Activation&nbsp;save](#configuration-activation-save-methods)<br>[Configuration&nbsp;Activation&nbsp;query](#configuration-activation-query-methods)<br>                                                                                                                              |
 | Sample Status | A status code assigned to an individual PV sample at a specific timestamp, within a named domain (the status code semantics contract) and layer (the producer stream).  Supports data quality flags, ML anomaly labels, and operator overrides; sparse labeling is supported, and unlabeled samples carry no assertion. | [Sample&nbsp;Status&nbsp;save](#sample-status-save-methods)<br>[Sample&nbsp;Status&nbsp;query](#sample-status-query-methods)<br>[Sample&nbsp;Status&nbsp;delete](#sample-status-delete-methods)<br>                                                                                                       |
-| Data Set | A Data Set identifies PV data of interest in the archive through the use of Data Blocks, each one identifying a list of PVs and range of time. | [Data&nbsp;Set&nbsp;save](#data-set-save-methods)<br>[Data&nbsp;Set&nbsp;query](#data-set-query-methods)<br>[Data&nbsp;Set&nbsp;export](#data-set-export-methods)<br>                                                                                                                                                          |
-| Annotation | Annotations are used to annotate Data Sets in the archive with descriptive information, data associations, Calculations, and provenance tracking information. | [Annotation&nbsp;save](#annotation-save-methods)<br>[Annotation&nbsp;query](#annotation-query-methods)<br>                                                                                                                                                                                                                    |
+| Data Set | A Data Set identifies PV data of interest in the archive through the use of Data Blocks, each one identifying a list of PVs and range of time. | [Data&nbsp;Set&nbsp;save](#data-set-save-methods)<br>[Data&nbsp;Set&nbsp;query](#data-set-query-methods)<br>[Data&nbsp;Set&nbsp;get](#data-set-get-methods)<br>[Data&nbsp;Set&nbsp;delete](#data-set-delete-methods)<br>[Data&nbsp;export](#data-export-methods)<br>                                                          |
+| Annotation | Annotations are used to annotate Data Sets in the archive with descriptive information, data associations, Calculations, and provenance tracking information. | [Annotation&nbsp;save](#annotation-save-methods)<br>[Annotation&nbsp;query](#annotation-query-methods)<br>[Annotation&nbsp;get](#annotation-get-methods)<br>[Annotation&nbsp;delete](#annotation-delete-methods)<br>                                                                                                            |
+| Calculations | User-defined analysis output attached to an Annotation: named data frames of calculated columns, sharing the typed column types and per-column metadata used for ingested PV data.  Owned by the Annotation, but separately stored and separately retrievable by id. | [Calculations&nbsp;get](#calculations-get-methods)<br>[Annotation&nbsp;save](#annotation-save-methods)<br>[Data&nbsp;export](#data-export-methods)<br>                                                                                                                                                                          |
 
 
 
@@ -130,7 +131,9 @@ The Data Platform API is intended to support the following use cases and pattern
 - Create Data Sets identifying archive data blocks of interest by PVs and time range.
 - Annotate Data Sets by adding descriptive information, linking to associated other Data Sets and Annotations, adding user-defined Calculations, and tracking data provenance.
 - Query Annotations and identify Data Sets of interest.
-- Export Data including both Data Sets and Calculations.
+- Record column-level provenance for derived data, linking a calculated column to the PVs or Calculations columns it was computed from.
+- Retrieve Calculations on their own by id, without loading the owning Annotation.
+- Export Data including Data Sets, ad-hoc data blocks, and Calculations.
 
 
 ## API Cookbook
@@ -149,7 +152,7 @@ worked examples that span multiple calls — "how do I actually do X?" — see t
 | [PV metadata](doc/cookbook/pv-metadata.md) | Cataloguing PVs, discovery by tag/attribute/name, alias resolution, driving queries from metadata |
 | [Machine configuration](doc/cookbook/machine-configuration.md) | Creating a configuration, recording activations in real time, closing an open activation, listing activation history |
 | [Sample status](doc/cookbook/sample-status.md) | Labeling samples with status codes (dense and sparse), querying statuses, re-labeling a range, filtering data queries by status |
-| [Data sets, annotations, export](doc/cookbook/datasets-and-annotations.md) | Defining DataSets, annotating them, publishing Calculations, exporting to HDF5/CSV/XLSX |
+| [Data sets, annotations, export](doc/cookbook/datasets-and-annotations.md) | Defining DataSets, annotating them, publishing Calculations, recording column-level provenance, exporting to HDF5/CSV/XLSX |
 | [Generating and importing Python stubs](doc/cookbook/python-stubs.md) | How Python stubs are produced from these protos and published via dp-python-lib |
 
 Recipes use Java, the language whose stubs this repo builds.  Python users should start with
@@ -274,7 +277,15 @@ The original implementation includes the message DataColumn which contains a lis
 
 Each column message includes an optional ColumnMetadata field for attaching per-column metadata to an ingestion request.  ColumnMetadata contains a ColumnProvenance message, a list of string tags, and a list of key/value Attribute pairs.
 
-ColumnProvenance has two unconstrained, facility-specific string fields: "source", which identifies the origin of the data (e.g., an NTTable/column identifier), and "process", which describes any processing applied to the source data (e.g., normalization).  The MLDP does not constrain, enforce, or otherwise interpret these values.
+ColumnProvenance records provenance at two levels of detail.  The first is free-form description, in two unconstrained, facility-specific string fields: "source", which identifies the origin of the data (e.g., an NTTable/column identifier), and "process", which describes any processing applied to the source data (e.g., normalization).
+
+The second is structured links.  The "derivedFrom" field is a list of ColumnSource messages naming the specific columns this column was computed from, in a form a client can traverse.  Each ColumnSource identifies either an archived PV (by name) or a column of a Calculations object (by calculationsId, frame name, and column name), and may carry an optional TimeRange giving the source interval consumed — which matters for aggregations, whose input interval is not implied by the derived column's own timestamps.  The list is repeated because a derived column may have several inputs, such as a difference of two PVs.
+
+The MLDP does not constrain, enforce, or otherwise interpret any of these values.  derivedFrom links in particular are stored as supplied and are never validated for existence; a link that resolves to nothing means the referenced record was deleted, and readers must tolerate it.
+
+Because ColumnProvenance rides inside the ColumnMetadata carried by every column message type, one mechanism serves both ingestion-side derived data and the columns of Annotation Calculations.  This is the finer of the two provenance levels in the API; the coarser, document level lives on an Annotation, whose dataSetIds and annotationIds record which archived data and which other annotations a body of work drew on.  As a rule of thumb for where derived data belongs: one-time analysis products belong in Annotation Calculations, atomic with their descriptive context and outside the PV namespace, while continuously-computed derived streams belong in ingestion as ordinary PVs.  Both use the same derivedFrom links.
+
+There is no cost to leaving provenance unused — an absent ColumnMetadata or ColumnProvenance and an empty derivedFrom list all encode to zero bytes.
 
 Column metadata is truly dynamic — it travels with each ingestion request and is stored at the bucket level.  For more static PV information, use the PV metadata query API.  Overuse of bucket-level metadata will burden the ingestion server process, which is optimized for continually ingesting PV time-series data.
 
@@ -1138,7 +1149,7 @@ If you think of the entire data archive as a giant spreadsheet, with a column fo
 
 The file ___annotation.proto___ defines the messages DataSet and DataBlock for use as the data model for creating annotations, where a DataSet includes a list of DataBlock messages, and each DataBlock includes begin and end Timestamp messages (described above), and a list of PV names.
 
-The API includes methods for creating, querying, and exporting Data Sets.  Each is described in more detail below.
+The API includes methods for saving, querying, retrieving, deleting, and exporting Data Sets.  Each is described in more detail below.
 
 ### Data Set Save Methods
 <table>
@@ -1153,11 +1164,17 @@ rpc saveDataSet(SaveDataSetRequest) returns (SaveDataSetResponse);
 <tr>
 <td>
 
-saveDataSet() is a unary single request/response method for creating or updating a dataset.  It accepts a SaveDataSetRequest message and returns a SaveDataSetResponse.
+saveDataSet() is a unary single request/response method for creating or replacing a Data Set.  It accepts a SaveDataSetRequest message and returns a SaveDataSetResponse.
 
 ----
 
-A SaveDataSetRequest message contains a DataSet message with details of the dataset to be created or updated, e.g., its list of DataBlock messages.  Each DataBlock message specifies a list of PVs and a range of time to identify a region of interest in the archive.  If the DataSet's id field is populated, the corresponding existing DataSet is updated; otherwise a new DataSet is created.
+A SaveDataSetRequest lists the client-settable Data Set fields directly rather than embedding a DataSet message: id, name, ownerId, description, dataBlocks, tags, attributes, and modifiedBy.  Each DataBlock message specifies a list of PVs and a range of time to identify a region of interest in the archive.
+
+If the optional id field is empty a new Data Set is created and the service generates its id; if id is supplied, the corresponding existing Data Set is replaced.
+
+**Full replace on update.**  All fields are replaced with the request contents.  Fields omitted from the request are not preserved, so callers must supply the complete desired state on every save.  patchDataSet() will provide partial-update semantics in a future release.
+
+The audit timestamps createdTime and updatedTime are server-set and are not accepted as input; they are returned in getDataSet() and queryDataSets() responses only.
 
 ----
 
@@ -1186,19 +1203,109 @@ The "queryDataSets()" method is a unary single request/response method that sear
 
 ----
 
-A QueryDataSetsRequest encapsulates the criteria for the query.  It contains a list of criteria, each of which is a QueryDataSetsCriterion message.
+A QueryDataSetsRequest contains a list of QueryDataSetsCriterion entries and optional pagination parameters (limit, pageToken).  Multiple criteria are combined with logical AND; values within a single criterion are combined with logical OR.  Criterion types include:
 
-The QueryDataSetsCriterion message defines a number of different criteria message types that can be added to the criterion list for query by Data Set id, owner, PV name, or full text search over the Data Set name and description fields.
+- **IdCriterion** — match by Data Set id.  This is the batch-retrieval path for the dataSetIds returned by queryAnnotations(): gather the ids across the returned annotations and fetch all the referenced Data Sets in one call, rather than issuing a getDataSet() per id.
+- **OwnerCriterion** — match by owner id.
+- **NameCriterion** — match by name using exact, prefix, and/or contains sub-lists (all ORed together).
+- **TextCriterion** — full-text search over the record's indexed text fields, which are name and description.  This is a collection-level text index search, not a per-field match; use NameCriterion when a match must be restricted to the name.
+- **PvNameCriterion** — match Data Sets having a Data Block that names any of the specified PVs.
+- **TagsCriterion** — match records that have any of the specified tags.
+- **AttributesCriterion** — match by attribute key and optional value(s); an empty values list matches any record that has the key regardless of value (key-only / existence search).
 
-These query criteria can be used individually in the criteria list, or multiple criteria can be added to the list to specify a compound query.  E.g., adding an OwnerCriterion and TextCriterion to the list will match datasets for the owner that contain the specified text.
+An empty criteria list matches all Data Sets.
+
+**Pagination.**  limit is the maximum number of records in a page; an unset or zero limit means a server-configured default page size, not an unbounded result.  Clients must follow nextPageToken to retrieve all matching records.  pageToken is an opaque continuation token from a previous response; a malformed token is rejected with an ExceptionalResult.
+
+**Ordering.**  Results are ordered by id ascending.  The id is unique, which makes paging stable, and is approximately insertion order.
 
 ----
 
-The queryDataSets() method returns a QueryDataSetsResponse message with the query results.  It contains one of two payloads, either an ExceptionalResult message if the query encountered an error or returned no data, or a DataSetsResult message with the results of the query.
+The queryDataSets() method returns a QueryDataSetsResponse message with the query results.  The payload is an ExceptionalResult if the request is rejected or an error is encountered, otherwise a DataSetsResult containing a list of DataSet messages and a nextPageToken for retrieving subsequent pages.  An empty nextPageToken indicates the last page.  An empty result set is returned as a DataSetsResult with an empty list, not an ExceptionalResult.
 
-The DataSetsResult message includes a list of DataSet messages, one for each dataset that matches the query's search criteria.
+A DataSet message includes the following properties for the dataset: unique id, name, owner id, description, the list of DataBlock messages comprising the dataset, tags, attributes, the server-set createdTime and updatedTime, and modifiedBy.
 
-A DataSet message includes the following properties for the dataset: unique id, name, owner id, description, and a list of the DataBlock messages comprising the dataset.
+</td>
+</tr>
+</table>
+
+### Data Set Get Methods
+<table>
+<tr>
+<td><pre>
+rpc getDataSet(GetDataSetRequest) returns (GetDataSetResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+The getDataSet() method retrieves a single Data Set by id.  This is the content-retrieval path for the dataSetIds returned by queryAnnotations(), which carry ids only and not embedded Data Set content.
+
+To retrieve many Data Sets at once, prefer queryDataSets() with an IdCriterion listing the ids — that is a single round trip, whereas a getDataSet() per id is not.
+
+----
+
+A GetDataSetRequest contains the id of the Data Set to retrieve.
+
+----
+
+The response payload is an ExceptionalResult if the request is rejected, an error is encountered, or no Data Set exists with the specified id, otherwise a GetDataSetResult containing the matching DataSet record.
+
+</td>
+</tr>
+</table>
+
+### Data Set Delete Methods
+<table>
+<tr>
+<td><pre>
+rpc deleteDataSet(DeleteDataSetRequest) returns (DeleteDataSetResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+The deleteDataSet() method deletes the Data Set with the specified id.
+
+**Referential integrity.**  The request is rejected while any Annotation references the Data Set in its dataSetIds — a containment-strength association.  Delete or update those annotations first; use queryAnnotations() with a DataSetsCriterion to find them.
+
+----
+
+A DeleteDataSetRequest contains the id of the Data Set to delete.
+
+----
+
+The response payload is an ExceptionalResult if the request is rejected (including rejection for referencing Annotations), an error is encountered, or no Data Set exists with the specified id, otherwise a DeleteDataSetResult containing the id of the deleted record.
+
+</td>
+</tr>
+</table>
+
+### Data Set Placeholder Methods
+
+One additional Data Set method is defined in the proto but not yet implemented.  Calling it returns an error response.  It is defined now to reserve its name and establish the standard CRUD pattern for metadata APIs in this service.
+
+<table>
+<tr>
+<td><pre>
+rpc patchDataSet(PatchDataSetRequest) returns (PatchDataSetResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+**patchDataSet()** will provide partial-update semantics, allowing individual fields (name, description, dataBlocks, tags, attributes, modifiedBy) to be updated without replacing the entire record.  Field mask design is deferred to the release that implements this method.
+
+There is deliberately no bulkSaveDataSet() method.  Unlike PV metadata and configuration activations, Data Sets are not bulk-imported from external systems, so the bulk-write half of the CRUD pattern is omitted rather than stubbed.
 
 </td>
 </tr>
@@ -1221,15 +1328,23 @@ The method exportData() exports data for DataSets and Calculations to common fil
 
 ----
 
-Parameters to the exportData() method are contained in an ExportDataRequest message that includes fields for specifying the id of the DataSet, a CalculationsSpec identifying a Calculations object with an optional column filter, and an enum for specifying the desired output file format.
+Parameters to the exportData() method are contained in an ExportDataRequest message that specifies the data to export and the desired output file format.  There are three ways to specify data, and they may be combined in a single request:
+
+- **dataSetId** — the id of a saved DataSet.
+- **dataBlocks** — an inline, ad-hoc list of DataBlock messages, each a time range plus a list of PV names.  This uses the same building block a DataSet contains and is treated by the service as a transient dataset.  It is the path for a one-off export that does not warrant saving a DataSet; use dataSetId when the selection is worth keeping and re-using.
+- **calculationsSpec** — a CalculationsSpec identifying a Calculations object by calculationsId, with an optional column filter.
+
+Each is optional individually, but at least one must be supplied; a request specifying none is rejected.  The outputFormat enum is required.
 
 ----
 
-The Annotation Service handling for the exportData() API method supports exporting either a DataSet object, a Calculations object, or both to tabular (CSV, XLSX) and bucketed (HDF5) export output file formats.  A filtering mechanism is provided for selecting Calculations columns to include in the export using the columns specified in the CalculationsSpec message's optional "dataFrameColumns" map.  The method request parameters must include either a dataSetId or calculationsSpec, and can include both of them.
+The Annotation Service handling for the exportData() API method supports exporting datasets (saved or ad-hoc), Calculations, or any combination, to tabular (CSV, XLSX) and bucketed (HDF5) export output file formats.  A filtering mechanism is provided for selecting Calculations columns to include in the export using the columns specified in the CalculationsSpec message's optional "dataFrameColumns" map.
+
+**Output format restriction.**  The tabular formats (CSV, XLSX) can only represent scalar columns.  A dataset or Calculations object containing array, image, or struct columns can be exported to HDF5, but a request to export it as CSV or XLSX is rejected.
 
 ----
 
-For tabular export output file formats, when the export request includes only a DataSet object, the output file contains data for each data block in the DataSet, with a column for each PV over the data block's time range. When the export includes only a Calculations object, the  output file includes data for the filtered columns from the Calculations.  When both a dataset and Calculations object are included in the export request, the output file will contain first the columns for the Dataset, followed by the filtered Calculations columns.  Only Calculations values that fall within the time range of the dataset are included.
+For tabular export output file formats, when the export request includes only dataset content (a saved DataSet or inline dataBlocks), the output file contains data for each data block, with a column for each PV over the data block's time range. When the export includes only a Calculations object, the  output file includes data for the filtered columns from the Calculations.  When both dataset content and a Calculations object are included in the export request, the output file will contain first the columns for the dataset, followed by the filtered Calculations columns.  Only Calculations values that fall within the time range of the dataset are included.
 
 ----
 
@@ -1263,10 +1378,17 @@ Some of the concepts helpful in understanding the Annotation API are discussed b
 An Annotation includes required fields for owner id, a list of unique ids for the associated Data Sets, and a brief name.  It includes the following optional fields:
 
 - annotationIds: list of unique ids for associated annotations
-- comment: free-form text comment
+- description: free-form descriptive text
 - tags: list of tags / keywords for cataloging the annotation
 - attributes: list of key / value attribute pairs for cataloging the annotation
 - calculations: used to attach user-defined calculations (more details below)
+- modifiedBy: identity of the actor performing the most recent save
+
+The service additionally sets and returns the audit timestamps createdTime and updatedTime, which are not accepted as input.
+
+The primary key is an opaque server-generated id.  Annotation names are not unique, so unlike the natural-key metadata APIs in this service, the id is the only way to address a specific record in getAnnotation(), deleteAnnotation(), and the annotationIds of other Annotations.
+
+**References, not embedded content.**  An Annotation carries dataSetIds and calculationsId — ids, not content.  Retrieve Data Set content with getDataSet(), or in bulk with a single queryDataSets() call using an IdCriterion listing the ids gathered across a page of annotations.  Retrieve Calculations content with getCalculations(), or inline from getAnnotation().
 
 #### data provenance tracking
 
@@ -1275,19 +1397,29 @@ The lists of associated DataSet ids and Annotation ids are an initial attempt to
 - Create a DataSet that contains one or more Data Blocks that reference the PVs and time range(s) from the archive used in the calculation.
 - Create an Annotation containing the unique id of that DataSet in the list of dataSetIds, and includes the desired Calculations.
 
-To add Calculations that are derived from other user-defined Calculations (that are part of another Annotation like the one crated above), the following step is taken:
+To add Calculations that are derived from other user-defined Calculations (that are part of another Annotation like the one created above), the following step is taken:
 
 - Create an Annotation containing the unique id of the Annotation that contains the original Calculations in the list of associated annotationIds, and includes the new Calculations derived from the original.
 
+Both of the above record provenance at the document level: they say which archived data and which other annotations a body of work drew on.  Individual calculation columns can additionally carry provenance at the column level, in the ColumnProvenance message of their ColumnMetadata.  Its "derivedFrom" list names the specific source PVs or Calculations columns a column was computed from, and optionally the source time interval consumed.  See [column metadata and provenance](#column-metadata-and-provenance) for the full description.
+
+Links recorded in annotationIds and in derivedFrom are soft associations: they are not validated, and deleting a referenced record leaves them dangling.  A link that resolves to nothing means the referenced record was deleted, and readers must tolerate it.  Links from an Annotation to a Data Set are stronger — deleteDataSet() is rejected while any Annotation references the Data Set.
+
 #### calculations
 
-The Calculations object defines the data structure used for representing Calculations in both creating and querying Annotations.
+The Calculations object defines the data structure used for representing user-defined Calculations attached to an Annotation.
 
 To the extent possible, it parallels the data structures used in the ingestion of regular time-series data in order that user-defined Calculations can be treated in a similar fashion for the purposes of querying and exporting data that includes both PV data and user-defined Calculations.
 
-The Calculations object includes a list of CalculationsDataFrames.  Each CalculationsDataFrame includes a name, a DataTimestamps object, and a list of DataColumns, each of which contains a vector of data values for a single Calculation and specifies a DataValue for each timestamp specified by the corresponding DataTimestamps object.
+The Calculations object includes a list of CalculationsDataFrames.  Each CalculationsDataFrame includes a name and a DataFrame — the same message used as the unit of ingestion, carrying the timestamps for the frame plus lists of typed data columns.  Calculation output therefore has access to the same scalar, array, image, struct, and serialized column types as ingested data, and to per-column ColumnMetadata, which is where column-level provenance is recorded.
 
-It might be helpful to use the analogy of an Excel workbook.  The Calculations object is the workbook, and each CalculationDataFrame is a worksheet in that workbook that contains a column of timestamps and columns of calculated data with a value for each timestamp.
+It might be helpful to use the analogy of an Excel workbook.  The Calculations object is the workbook, and each CalculationsDataFrame is a worksheet in that workbook that contains a column of timestamps and columns of calculated data with a value for each timestamp.
+
+Frame names must be distinct within a Calculations object: frame names address frames in the CalculationsSpec dataFrameColumns map and in provenance links, so duplicates would be unaddressable and are rejected.
+
+**Sparsity.**  A calculation whose values occur at a different or sparser cadence than its siblings gets its own frame with its own time axis, rather than a dense column padded with missing values.  Data frames are cheap, and every column is dense on its own frame's axis.  The legacy DataColumn type remains reachable through the frame's DataFrame as an escape hatch for heterogeneously typed columns or columns with genuinely missing values; prefer the typed columns otherwise.
+
+**Lifecycle and addressing.**  Calculations are owned by their Annotation: they are created and replaced through saveAnnotation(), and are deleted when the Annotation is deleted.  They are nonetheless stored separately and carry their own id, which makes them separately retrievable with getCalculations().  That calculationsId is the single addressing key for Calculations across the API — getCalculations(), CalculationsSpec for export, and ColumnProvenance links all take it.  It is returned by saveAnnotation() and is present on every Annotation returned by a query or get.
 
 ### Annotation Save Methods
 <table>
@@ -1302,17 +1434,23 @@ rpc saveAnnotation(SaveAnnotationRequest) returns (SaveAnnotationResponse);
 <tr>
 <td>
 
-The method saveAnnotation() creates or updates an Annotation for the specified list of associated dataset(s).  It accepts a SaveAnnotationRequest message and returns a SaveAnnotationResponse message.
+The method saveAnnotation() creates or replaces an Annotation for the specified list of associated dataset(s).  It accepts a SaveAnnotationRequest message and returns a SaveAnnotationResponse message.
+
+This is also the write path for Calculations — there is no saveCalculations() method.
 
 ----
 
-A SaveAnnotationRequest includes fields for the required and optional Annotation fields described above.  If the optional id field is populated, the corresponding existing Annotation is updated; otherwise a new Annotation is created.
+A SaveAnnotationRequest includes fields for the required and optional Annotation fields described above.  If the optional id field is empty a new Annotation is created and the service generates its id; if id is supplied, the corresponding existing Annotation is replaced.
+
+**Full replace on update.**  All fields are replaced with the request contents.  Fields omitted from the request are not preserved, so callers must supply the complete desired state on every save.  This includes calculations: an update that omits calculations clears the Annotation's existing calculations, which is the most costly instance of the general rule.  Read the current state with getAnnotation() and resend it if you are updating other fields.  patchAnnotation() will provide partial-update semantics in a future release.
+
+The id field of a supplied Calculations object is ignored on save; the service assigns the id.  The audit timestamps createdTime and updatedTime are likewise server-set and are not accepted as input.
 
 ----
 
 A SaveAnnotationResponse message includes one of two payloads, either an ExceptionalResult if an error is encountered, or a SaveAnnotationResult if the operation is successful.
 
-A SaveAnnotationResult message contains the unique identifier of the new or updated annotation.
+A SaveAnnotationResult message contains the unique identifier of the new or updated annotation, and — when the request carried calculations — the calculationsId of the saved Calculations object.  The latter is returned here so that the addressing key used by getCalculations(), CalculationsSpec, and ColumnProvenance links is available without a further round trip.
 
 </td>
 </tr>
@@ -1335,23 +1473,150 @@ The queryAnnotations() method is a unary single request/response method that sea
 
 ----
 
-A QueryAnnotationsRequest encapsulates the criteria for the query.  It contains a list of criteria, each a QueryAnnotationsCriterion message.
+A QueryAnnotationsRequest contains a list of QueryAnnotationsCriterion entries and optional pagination parameters (limit, pageToken).  Multiple criteria are combined with logical AND; values within a single criterion are combined with logical OR.  Criterion types include:
 
-The QueryAnnotationsCriterion message defines a number of different criteria message types that can be used for searching by Annotation unique id, owner, unique id of associated Data Set, unique id of associated Annotation, full text search over Annotation name / comment / event description fields, tag value, or attribute key / value.
+- **IdCriterion** — match by Annotation id.
+- **OwnerCriterion** — match by owner id.
+- **DataSetsCriterion** — match Annotations referencing any of the specified Data Set ids.  This is also how to find the Annotations that block a deleteDataSet().
+- **AnnotationsCriterion** — match Annotations referencing any of the specified Annotation ids.
+- **NameCriterion** — match by name using exact, prefix, and/or contains sub-lists (all ORed together).
+- **TextCriterion** — full-text search over the record's indexed text fields, which are name and description.  This is a collection-level text index search, not a per-field match; use NameCriterion when a match must be restricted to the name.
+- **TagsCriterion** — match records that have any of the specified tags.
+- **AttributesCriterion** — match by attribute key and optional value(s); an empty values list matches any record that has the key regardless of value (key-only / existence search).
 
-These query criteria can be used individually in the criteria list, or multiple criteria can be added to the list to specify a compound query.  E.g., adding an OwnerCriterion and TextCriterion to the list will match Annotations for an owner that contain the specified text.
+An empty criteria list matches all Annotations.
+
+**Pagination.**  limit is the maximum number of records in a page; an unset or zero limit means a server-configured default page size, not an unbounded result.  Clients must follow nextPageToken to retrieve all matching records.  pageToken is an opaque continuation token from a previous response; a malformed token is rejected with an ExceptionalResult.
+
+**Ordering.**  Results are ordered by id ascending.  The id is unique, which makes paging stable, and is approximately insertion order.
 
 ----
 
-The queryAnnotations() method returns a QueryAnnotationsResponse message with the query results.  It contains one of two payloads, either an ExceptionalResult message if the query encountered an error or returned no data (described above), or an AnnotationsResult message with the query results.
+The queryAnnotations() method returns a QueryAnnotationsResponse message with the query results.  The payload is an ExceptionalResult if the request is rejected or an error is encountered, otherwise an AnnotationsResult containing a list of Annotation messages and a nextPageToken for retrieving subsequent pages.  An empty nextPageToken indicates the last page.  An empty result set is returned as an AnnotationsResult with an empty list, not an ExceptionalResult.
 
-The AnnotationsResult message includes a list of Annotation messages, one for each Annotation that matches the query's search criteria.
+Returned Annotations carry references, not embedded content: dataSetIds and calculationsId are populated, and the calculations field is empty.  Fetch the referenced Data Sets in a single queryDataSets() call using an IdCriterion listing the ids gathered across the page, and Calculations content with getCalculations() or getAnnotation().
 
-An Annotation message includes all of the required and optional Annotation fields described above, plus the content of associated DataSets for convenience.
+Because calculationsId is always populated when calculations exist, it doubles as the presence indicator: an empty calculationsId means the Annotation has no calculations, and a non-empty one paired with an empty calculations field means the content was simply not fetched by this method.
 
 </td>
 </tr>
 </table>
+
+### Annotation Get Methods
+<table>
+<tr>
+<td><pre>
+rpc getAnnotation(GetAnnotationRequest) returns (GetAnnotationResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+The getAnnotation() method retrieves a single Annotation by id, with its Calculations content populated inline as a one-hop convenience for the common "open this annotation" case.  This is the only method that returns Calculations content within an Annotation; queryAnnotations() returns calculationsId only.
+
+Associated Data Sets are returned as ids, not content; use getDataSet() or queryDataSets() with an IdCriterion to retrieve them.
+
+----
+
+A GetAnnotationRequest contains the id of the Annotation to retrieve.
+
+----
+
+The response payload is an ExceptionalResult if the request is rejected, an error is encountered, or no Annotation exists with the specified id, otherwise a GetAnnotationResult containing the matching Annotation record.
+
+</td>
+</tr>
+</table>
+
+### Annotation Delete Methods
+<table>
+<tr>
+<td><pre>
+rpc deleteAnnotation(DeleteAnnotationRequest) returns (DeleteAnnotationResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+The deleteAnnotation() method deletes the Annotation with the specified id.  The Annotation's Calculations, if any, are deleted with it — their lifecycle belongs to the owning Annotation.
+
+**Referential integrity.**  Unlike deleteDataSet(), this delete is not blocked by incoming references.  Other Annotations listing this annotation's id in annotationIds, and ColumnProvenance derivedFrom links naming its calculations, are soft associations and are permitted to dangle.  A soft link that resolves to nothing means the referenced record was deleted, and readers must tolerate it.
+
+----
+
+A DeleteAnnotationRequest contains the id of the Annotation to delete.
+
+----
+
+The response payload is an ExceptionalResult if the request is rejected, an error is encountered, or no Annotation exists with the specified id, otherwise a DeleteAnnotationResult containing the id of the deleted record.
+
+</td>
+</tr>
+</table>
+
+### Annotation Placeholder Methods
+
+One additional Annotation method is defined in the proto but not yet implemented.  Calling it returns an error response.  It is defined now to reserve its name and establish the standard CRUD pattern for metadata APIs in this service.
+
+<table>
+<tr>
+<td><pre>
+rpc patchAnnotation(PatchAnnotationRequest) returns (PatchAnnotationResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+**patchAnnotation()** will provide partial-update semantics, allowing individual fields (dataSetIds, name, annotationIds, description, tags, attributes, calculations, modifiedBy) to be updated without replacing the entire record.  Field mask design is deferred to the release that implements this method.
+
+As with Data Sets, there is deliberately no bulkSaveAnnotation() method: Annotations are not bulk-imported from external systems, so the bulk-write half of the CRUD pattern is omitted rather than stubbed.
+
+</td>
+</tr>
+</table>
+
+### Calculations Get Methods
+<table>
+<tr>
+<td><pre>
+rpc getCalculations(GetCalculationsRequest) returns (GetCalculationsResponse);
+</pre></td>
+</tr>
+<tr>
+<td>defined in: annotation.proto</td>
+</tr>
+<tr>
+<td>
+
+The getCalculations() method retrieves a single Calculations object by id, without loading the owning Annotation's descriptive payload.  This is the click-through path: list annotations, pick one, then fetch exactly its calculations using the calculationsId the listing returned.
+
+Obtain a calculationsId from SaveAnnotationResult, from the calculationsId field of an Annotation returned by a query or get, or from a ColumnProvenance CalculationsColumn provenance link.
+
+----
+
+A GetCalculationsRequest contains the id of the Calculations object to retrieve.
+
+----
+
+The response payload is an ExceptionalResult if the request is rejected, an error is encountered, or no Calculations object exists with the specified id, otherwise a GetCalculationsResult containing the matching Calculations record.
+
+----
+
+Calculations have no save, delete, or query method of their own, and the asymmetry is deliberate.  They are written and replaced through saveAnnotation(), their lifecycle belongs to the owning Annotation (deleteAnnotation() removes them), and discovery goes through queryAnnotations().  Only retrieval needs a standalone path, because a client that already holds a calculationsId should not have to fetch an annotation to use it.
+
+</td>
+</tr>
+</table>
+
 
 
 ---

@@ -53,8 +53,21 @@ do {
 } while (!pageToken.isEmpty());
 ```
 
+Two rules apply to every paged query:
+
+- **An unset or zero `limit` means a server-configured default page size, not an unbounded
+  result.**  You must follow `nextPageToken` to retrieve all matching records; a single call
+  without a `limit` returns one page, not everything.
+- **A malformed `pageToken` is rejected with an `ExceptionalResult`.**  Tokens are opaque —
+  pass back exactly what the previous response returned, and do not construct, parse, or persist
+  them across schema changes.
+
 There is deliberately **no `totalCount` field** — computing it requires an expensive separate
 count query.  Do not expect to know the result size in advance.
+
+Server-streaming query methods are the exception to the second rule: they are fire-and-consume,
+so `pageToken` must be empty and `nextPageToken` is always empty on streamed messages.  Use the
+unary method when you need resumable paging.
 
 ## Query criteria
 
