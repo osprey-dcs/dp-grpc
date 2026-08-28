@@ -571,24 +571,16 @@ message DataColumn {
 /*
  * Unit of Heterogeneous Data
  *
- * The message includes both a data field 'value' and a status field 'valueStatus'.
- * The 'value' field is the actual data value while the 'valueStatus' field represents the
- * condition of the value (i.e., typically at acquisition time).  Future versions may include
- * the status of the value within the archive (e.g., corrupt, truncated, etc.).
- *
  * The field 'value' is a union of all possible data types currently supported.  It represents one
  * unit of heterogeneous data.  Only one data type may be included in the message.
  *
- * The 'valueStatus' field is structure defined as an enclosed RPC message.  It contains information about the
- * value during acquisition, such as value alarm conditions, acquisition conditions, and any associated
- * message.  This field is subject to future modification for expanded use cases.
- *
  * NOTE: Use of this type for ingestion is deprecated, and may be removed in the next API version. Handling of
- * DataValue in ingestion causes per-sample memory allocation that is inefficient. Also, the ValueStatus mechanism
- * is useful for capturing status information from the control system, but not for automated cleaning tools that must
- * update value status information post-ingestion.  The Sample Status API (see annotation.proto) is the designated
- * replacement for ValueStatus: acquisition-time alarm/status information (e.g., EPICS severity and status) is
- * captured as sample statuses in a status domain, and can be assigned or updated post-ingestion.
+ * DataValue in ingestion causes per-sample memory allocation that is inefficient.
+ *
+ * Acquisition-time alarm and status information (e.g., EPICS severity and status) is expressed through the
+ * Sample Status API (see annotation.proto): statuses are captured in a status domain keyed by (pvName,
+ * timestamp), and can be assigned or updated post-ingestion by automated cleaning tools.  This replaces the
+ * 'valueStatus' field removed from this message; see the reservation below.
  */
 message DataValue {
 
@@ -612,52 +604,17 @@ message DataValue {
   }
 
   /*
-   * Status of Value
+   * Field 15 held 'valueStatus' (nested message ValueStatus), removed in this release.
+   * Acquisition-time alarm and status information is expressed through the Sample Status
+   * API in annotation.proto instead; see the message comment above.
    *
-   * Represents the condition of the value or associated hardware and software at
-   * acquisition time.
+   * The number and name are reserved permanently.  Archived DataValue records written
+   * before the removal still contain field 15; those bytes now decode as an unknown field.
+   * Assigning 15 to any future field would cause that archived data to be silently
+   * misread as the new field rather than rejected.
    */
-  ValueStatus valueStatus = 15;
-
-  /*
-   * Status of data value.
-   *
-   * The status definition reflects the value at acquisition time
-   * (e.g., as in the EPIC record fields).
-   */
-  message ValueStatus {
-
-    string message = 1;
-    StatusCode statusCode = 2;
-    Severity severity = 3;
-
-    /*
-     * Source of an Exceptional Status
-     */
-    enum StatusCode {
-      NO_STATUS = 0;		// no status condition
-      DEVICE_STATUS = 1;	// hardware device condition
-      DRIVER_STATUS = 2;	// hardware driver condition
-      RECORD_STATUS = 3;	// device database record condition
-      DB_STATUS = 4; 		// device database condition
-      CONF_STATUS = 5;		// configuration condition
-      UNDEFINED_STATUS = 6;	// unknown or undefined status condition
-      CLIENT_STATUS = 7;	// data provider client condition
-    }
-
-    /*
-     * Value Alarm
-     *
-     * Pre-configured alarm conditions triggered by current data value.
-     */
-    enum Severity {
-      NO_ALARM = 0;			// no alarm conditions
-      MINOR_ALARM = 1;		// value has triggered a minor alarm condition
-      MAJOR_ALARM = 2;		// value has triggered a major alarm condition
-      INVALID_ALARM = 3;	// value has triggered an invalid alarm condition
-      UNDEFINED_ALARM = 4;	// unknown or undefined alarm condition present
-    }
-  }
+  reserved 15;
+  reserved "valueStatus";
 }
 
 /*
