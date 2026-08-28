@@ -514,10 +514,11 @@ column-oriented representation.  If you need row maps, pivot client-side from th
   [Filtering a data query by status](sample-status.md#filtering-a-data-query-by-status).
   Sample-oriented methods only: a `queryBuckets()` / `queryBucketsStream()` request with the
   selector set is rejected with an `ExceptionalResult`.
-- **`DataValue.valueStatus` is deprecated** in favor of the Sample Status API: capture
+- **`DataValue.valueStatus` was removed in 1.16.0** in favor of the Sample Status API: capture
   acquisition-time alarm/status information (EPICS severity and status) as sample statuses in a
-  status domain instead.  `valueStatus` still appears on archived `DataValue`s that carry it and
-  can be filtered client-side; there is no server-side selection on it.
+  status domain instead.  Records archived before the removal still carry the field's bytes, but
+  the API does not surface them — there is no accessor for it and never was any server-side
+  selection on it.
 - **Unary responses are bounded by the gRPC maximum message size.**  This is the practical reason
   to set `limit` on unary calls even when you think the result is small — an unbounded unary
   query against a wide PV set can exceed the limit and fail.

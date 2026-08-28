@@ -309,6 +309,8 @@ with an `ExceptionalResult`.
   `saveSampleStatusDomain()` and `querySampleStatusDomains()` are reserved placeholders and
   return a "not implemented" error.  Domains are used simply by naming them, as the recipes
   above do; there is no registration step.
-- The Sample Status API is the designated replacement for the deprecated `DataValue`
-  `ValueStatus` mechanism: capture acquisition-time alarm/status information (e.g. EPICS
-  severity and status) as sample statuses in a status domain instead.
+- The Sample Status API is the designated replacement for the `DataValue` `ValueStatus`
+  mechanism, which was removed in 1.16.0.  If you previously supplied `ValueStatus` at
+  ingestion, capture the same acquisition-time alarm/status information (e.g. EPICS severity
+  and status) with `saveSampleStatuses()` in an appropriate status domain — which additionally
+  permits the post-ingestion correction the embedded mechanism never allowed.
