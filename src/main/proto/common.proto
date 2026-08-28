@@ -578,9 +578,9 @@ message DataColumn {
  * DataValue in ingestion causes per-sample memory allocation that is inefficient.
  *
  * Acquisition-time alarm and status information (e.g., EPICS severity and status) is expressed through the
- * Sample Status API (see annotation.proto): statuses are captured in a status domain keyed by (pvName,
- * timestamp), and can be assigned or updated post-ingestion by automated cleaning tools.  This replaces the
- * 'valueStatus' field removed from this message; see the reservation below.
+ * Sample Status API (see annotation.proto): statuses are captured in a status domain, keyed by (pvName,
+ * timestamp, domain, layer), and can be assigned or updated post-ingestion by automated cleaning tools.
+ * This replaces the 'valueStatus' field removed from this message; see the reservation below.
  */
 message DataValue {
 
@@ -604,7 +604,7 @@ message DataValue {
   }
 
   /*
-   * Field 15 held 'valueStatus' (nested message ValueStatus), removed in this release.
+   * Field 15 held 'valueStatus' (nested message ValueStatus), removed in 1.16.0.
    * Acquisition-time alarm and status information is expressed through the Sample Status
    * API in annotation.proto instead; see the message comment above.
    *

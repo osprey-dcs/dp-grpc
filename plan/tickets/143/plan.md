@@ -8,7 +8,7 @@
   [#145](https://github.com/osprey-dcs/dp-grpc/pull/145) on 2026-08-27)
 - **Replaces**: [#121](https://github.com/osprey-dcs/dp-grpc/issues/121) — the Sample Status
   API, which is the designated replacement mechanism
-- **Status**: triaged 2026-08-28; implementation not started
+- **Status**: decisions settled 2026-08-28; implemented in [#146](https://github.com/osprey-dcs/dp-grpc/pull/146)
 - **Prior verification**: the dp-service blast radius below was verified on 2026-08-27 during
   #132 triage and is recorded in [`../132/plan.md`](../132/plan.md) D13 and
   [`../132/dp-service-handoff.md`](../132/dp-service-handoff.md)
@@ -112,7 +112,7 @@ In their place, inside `DataValue`, after the `oneof value` block:
 
 ```proto
   /*
-   * Field 15 held 'valueStatus' (nested message ValueStatus), removed in this release.
+   * Field 15 held 'valueStatus' (nested message ValueStatus), removed in 1.16.0.
    * Acquisition-time alarm and status information is expressed through the Sample Status
    * API in annotation.proto instead; see the message comment above.
    *
