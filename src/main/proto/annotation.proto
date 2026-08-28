@@ -718,7 +718,7 @@ service DpAnnotationService {
  * record in getDataSet(), deleteDataSet(), patchDataSet(), and Annotation.dataSetIds.
  */
 message DataSet {
-  string id = 1; // server-generated primary key; ignored on input to saveDataSet() when creating a new DataSet
+  string id = 1; // server-generated primary key
   string name = 2; // required name; not unique
   string ownerId = 3; // required owner
   string description = 4; // optional textual description
@@ -946,12 +946,18 @@ message QueryDataSetsRequest {
    */
   message QueryDataSetsCriterion {
 
+    /*
+     * Field numbers are not in declaration order: the criteria carried over from earlier
+     * releases keep the numbers they have always had, and criteria added in the 1.16.0
+     * modernization take fresh numbers above them.  Declaration order follows the order the
+     * criteria are documented in.  Do not renumber.
+     */
     oneof criterion {
       IdCriterion idCriterion = 10; // Query by DataSet id.
       OwnerCriterion ownerCriterion = 11; // Query by owner.
-      NameCriterion nameCriterion = 12; // Query by DataSet name.
-      TextCriterion textCriterion = 13; // Full text search.
-      PvNameCriterion pvNameCriterion = 14; // Query by PV name appearing in a DataBlock.
+      NameCriterion nameCriterion = 14; // Query by DataSet name.
+      TextCriterion textCriterion = 12; // Full text search.
+      PvNameCriterion pvNameCriterion = 13; // Query by PV name appearing in a DataBlock.
       TagsCriterion tagsCriterion = 15; // Query by tag / keyword value.
       AttributesCriterion attributesCriterion = 16; // Query attribute pairs by key and value.
     }
@@ -1483,15 +1489,21 @@ message QueryAnnotationsRequest {
    */
   message QueryAnnotationsCriterion {
 
+    /*
+     * Field numbers are not in declaration order: the criteria carried over from earlier
+     * releases keep the numbers they have always had, and criteria added in the 1.16.0
+     * modernization take fresh numbers above them.  Declaration order follows the order the
+     * criteria are documented in.  Do not renumber.
+     */
     oneof criterion {
       IdCriterion idCriterion = 10;  // Query by Annotation id.
       OwnerCriterion ownerCriterion = 11;  // Query by owner.
       DataSetsCriterion dataSetsCriterion = 12; // Query by id of associated DataSet.
       AnnotationsCriterion annotationsCriterion = 13; // Query by id of associated Annotation.
-      NameCriterion nameCriterion = 14; // Query by Annotation name.
-      TextCriterion textCriterion = 15; // Full text search.
-      TagsCriterion tagsCriterion = 16; // Query by tag / keyword value.
-      AttributesCriterion attributesCriterion = 17; // Query attribute pairs by key and value.
+      NameCriterion nameCriterion = 17; // Query by Annotation name.
+      TextCriterion textCriterion = 14; // Full text search.
+      TagsCriterion tagsCriterion = 15; // Query by tag / keyword value.
+      AttributesCriterion attributesCriterion = 16; // Query attribute pairs by key and value.
     }
 
     /*

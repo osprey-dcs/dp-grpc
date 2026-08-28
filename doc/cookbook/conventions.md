@@ -62,12 +62,13 @@ Two rules apply to every paged query:
   pass back exactly what the previous response returned, and do not construct, parse, or persist
   them across schema changes.
 
+Server-streaming query methods are an exception to this scheme as a whole: they are
+fire-and-consume, so `pageToken` must be empty (a non-empty one is rejected) and `nextPageToken`
+is always empty on streamed messages.  There `limit` controls the chunk size of each streamed
+response rather than a page size.  Use the unary method when you need resumable paging.
+
 There is deliberately **no `totalCount` field** — computing it requires an expensive separate
 count query.  Do not expect to know the result size in advance.
-
-Server-streaming query methods are the exception to the second rule: they are fire-and-consume,
-so `pageToken` must be empty and `nextPageToken` is always empty on streamed messages.  Use the
-unary method when you need resumable paging.
 
 ## Query criteria
 

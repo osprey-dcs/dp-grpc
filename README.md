@@ -1248,7 +1248,7 @@ To retrieve many Data Sets at once, prefer queryDataSets() with an IdCriterion l
 
 ----
 
-A GetDataSetRequest contains the id of the Data Set to retrieve.
+A GetDataSetRequest contains dataSetId, the id of the Data Set to retrieve.
 
 ----
 
@@ -1277,7 +1277,7 @@ The deleteDataSet() method deletes the Data Set with the specified id.
 
 ----
 
-A DeleteDataSetRequest contains the id of the Data Set to delete.
+A DeleteDataSetRequest contains dataSetId, the id of the Data Set to delete.
 
 ----
 
@@ -1386,6 +1386,8 @@ An Annotation includes required fields for owner id, a list of unique ids for th
 
 The service additionally sets and returns the audit timestamps createdTime and updatedTime, which are not accepted as input.
 
+The read and write shapes differ in how calculations are carried.  SaveAnnotationRequest accepts the calculations content shown above.  The Annotation message returned by queries additionally carries calculationsId, the id of the saved Calculations object, empty if the Annotation has none; its calculations field is populated by getAnnotation() only, and is left empty by queryAnnotations().  A non-empty calculationsId with an empty calculations field therefore means the content was simply not fetched by that method, not that there is none.
+
 The primary key is an opaque server-generated id.  Annotation names are not unique, so unlike the natural-key metadata APIs in this service, the id is the only way to address a specific record in getAnnotation(), deleteAnnotation(), and the annotationIds of other Annotations.
 
 **References, not embedded content.**  An Annotation carries dataSetIds and calculationsId — ids, not content.  Retrieve Data Set content with getDataSet(), or in bulk with a single queryDataSets() call using an IdCriterion listing the ids gathered across a page of annotations.  Retrieve Calculations content with getCalculations(), or inline from getAnnotation().
@@ -1411,7 +1413,7 @@ The Calculations object defines the data structure used for representing user-de
 
 To the extent possible, it parallels the data structures used in the ingestion of regular time-series data in order that user-defined Calculations can be treated in a similar fashion for the purposes of querying and exporting data that includes both PV data and user-defined Calculations.
 
-The Calculations object includes a list of CalculationsDataFrames.  Each CalculationsDataFrame includes a name and a DataFrame — the same message used as the unit of ingestion, carrying the timestamps for the frame plus lists of typed data columns.  Calculation output therefore has access to the same scalar, array, image, struct, and serialized column types as ingested data, and to per-column ColumnMetadata, which is where column-level provenance is recorded.
+The Calculations object carries a server-generated id and calculationDataFrames, a list of CalculationsDataFrames (note the singular "calculation" in the field name).  Each CalculationsDataFrame includes a name and a DataFrame — the same message used as the unit of ingestion, carrying the timestamps for the frame plus lists of typed data columns.  Calculation output therefore has access to the same scalar, array, image, struct, and serialized column types as ingested data, and to per-column ColumnMetadata, which is where column-level provenance is recorded.
 
 It might be helpful to use the analogy of an Excel workbook.  The Calculations object is the workbook, and each CalculationsDataFrame is a worksheet in that workbook that contains a column of timestamps and columns of calculated data with a value for each timestamp.
 
@@ -1521,7 +1523,7 @@ Associated Data Sets are returned as ids, not content; use getDataSet() or query
 
 ----
 
-A GetAnnotationRequest contains the id of the Annotation to retrieve.
+A GetAnnotationRequest contains annotationId, the id of the Annotation to retrieve.
 
 ----
 
@@ -1550,7 +1552,7 @@ The deleteAnnotation() method deletes the Annotation with the specified id.  The
 
 ----
 
-A DeleteAnnotationRequest contains the id of the Annotation to delete.
+A DeleteAnnotationRequest contains annotationId, the id of the Annotation to delete.
 
 ----
 
@@ -1603,7 +1605,7 @@ Obtain a calculationsId from SaveAnnotationResult, from the calculationsId field
 
 ----
 
-A GetCalculationsRequest contains the id of the Calculations object to retrieve.
+A GetCalculationsRequest contains calculationsId, the id of the Calculations object to retrieve.
 
 ----
 
