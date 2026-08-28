@@ -41,9 +41,11 @@ Data is stored and transmitted in **column-oriented** vectors, one column per PV
 - **Scalar**: `DoubleColumn`, `FloatColumn`, `Int64Column`, `Int32Column`, `BoolColumn`, `StringColumn`, `EnumColumn`
 - **Array**: `DoubleArrayColumn`, `FloatArrayColumn`, `Int64ArrayColumn`, `Int32ArrayColumn`, `BoolArrayColumn`
 - **Complex**: `ImageColumn`, `StructColumn`, `SerializedDataColumn`
-- **Deprecated for ingestion only**: `DataColumn` / `DataValue` (per-sample allocation; avoid for new ingestion). Still the supported representation for tabular/sample query results (e.g. the Query V2 `ColumnTable`) and Annotation Calculations, where an unset `DataValue` oneof provides missing-value support the dense types lack.
+- **Deprecated for ingestion only**: `DataColumn` / `DataValue` (per-sample allocation; avoid for new ingestion). Still the supported representation for tabular/sample query results (e.g. the Query V2 `ColumnTable`). In Annotation Calculations it is reachable through `DataFrame.dataColumns` as an escape hatch for heterogeneous or missing-value columns — an unset `DataValue` oneof provides missing-value support the dense types lack — but the typed columns are preferred, and a sparse calculation should get its own frame with its own axis rather than a padded column.
 
-Each column message carries an optional `ColumnMetadata metadata = 10` field (added in issue #116) containing `ColumnProvenance` (source/process), `tags`, and `attributes`.
+Each column message carries an optional `ColumnMetadata metadata = 10` field (added in issue #116) containing `ColumnProvenance`, `tags`, and `attributes`.
+
+`ColumnProvenance` records provenance at two levels: free-form `source` / `process` strings, and (added in issue #132) a structured `repeated ColumnSource derivedFrom` list naming the columns a derived column was computed from. Each `ColumnSource` is a oneof `origin` — an archived PV by name, or a `CalculationsColumn` (`calculationsId` + `frameName` + `columnName`) — plus an optional `TimeRange` for the source interval consumed. The oneof is named `origin` rather than `source` to avoid colliding with the sibling string field in the generated Java. Links are stored, never validated, and may dangle. Because `ColumnMetadata` rides on every column type, one mechanism serves both Annotation Calculations and ingestion-side derived data; the coarser document level of provenance is `Annotation.dataSetIds` / `annotationIds`.
 
 ### Configuration and ConfigurationActivation (`common.proto`)
 Shared messages for the machine configuration API (added in issue #120):
@@ -55,6 +57,17 @@ Placed in `common.proto` so query and other services can reference them without 
 
 ### Sample Status Messages (`common.proto`)
 Shared messages for the sample status API (added in issue #121): `SampleStatusColumn` (one PV's int32 status codes, optional `confidence`/`reasons` parallel arrays), `SampleStatusFrame` (unit of save: one (domain, layer), a `DataTimestamps` axis, one column per PV), `SampleStatusBucket` (unit of query results, with last-writer `source`/`modifiedBy`/`updatedTime`). The identity key of an individual status is (pvName, timestamp, domain, layer); upsert replaces a status in full; absence of a status means "no assertion"; matching against data samples is by exact timestamp at nanosecond precision.
+
+### DataSet, Annotation, and Calculations (`annotation.proto`)
+Modernized in issue #132 to the standard CRUD conventions, with breaking message-shape changes:
+
+- **`DataSet`** — opaque server-generated `id` as primary key (names are not unique), plus `name`, `ownerId`, `description`, `dataBlocks`, `tags`, `attributes`, and server-set `createdTime` / `updatedTime` / `modifiedBy`. `SaveDataSetRequest` is flat (no embedded `DataSet`).
+- **`Annotation`** — hoisted from its former nesting inside `QueryAnnotationsResponse` to a top-level message. `comment` renamed `description`. Carries `calculationsId` plus audit fields; the denormalized `repeated DataSet dataSets` content field was dropped.
+- **`Calculations`** — a `CalculationsDataFrame` is now `name` + `common.DataFrame`, replacing the old `DataTimestamps` + `repeated DataColumn` pair, so calculation output gets the typed column types and per-column `ColumnMetadata`. Frame names must be distinct. Owned by the Annotation but separately stored and separately readable; `calculationsId` is the single addressing key for `getCalculations`, `CalculationsSpec`, and provenance links.
+
+Query results carry **references, not embedded content**: `queryAnnotations` returns `dataSetIds` and `calculationsId`, and the batch-fetch path is one `queryDataSets` with a repeated `IdCriterion`. Referential rules: `deleteDataSet` is rejected while Annotations reference the DataSet; `deleteAnnotation` is not blocked and leaves soft links (`annotationIds`, `derivedFrom`) dangling.
+
+Both queries are paged and ordered by `id` ascending. Across all six paged annotation queries, an unset/zero `limit` means a server-configured default page size (not unbounded), and a malformed `pageToken` is rejected; criteria are ANDed with values ORed within a criterion.
 
 ### DataFrame (`common.proto`)
 The unit of ingestion. Contains `DataTimestamps` (either a `SamplingClock` or explicit `TimestampList`) plus lists of the column message types above.
@@ -106,9 +119,10 @@ V2 (added in issue #123): a common `QuerySpec` (time range + `PvSelector` [name 
 - `saveConfiguration` / `queryConfigurations` / `getConfiguration` / `deleteConfiguration` — machine configuration definition CRUD (`patchConfiguration` / `bulkSaveConfiguration` deferred stubs)
 - `saveConfigurationActivation` / `queryConfigurationActivations` / `getConfigurationActivation` / `deleteConfigurationActivation` / `getActiveConfigurations` — configuration activation CRUD and point-in-time query (`patchConfigurationActivation` / `bulkSaveConfigurationActivation` deferred stubs)
 - `saveSampleStatuses` / `querySampleStatuses` / `querySampleStatusesStream` / `deleteSampleStatuses` — sample status API (issue #121): batch upsert of per-sample status codes keyed by (pvName, timestamp, domain, layer), bucket-oriented query, exact-at-sample-axis delete; empty `pvNames` on query/delete = all PVs (`saveSampleStatusDomain` / `querySampleStatusDomains` deferred stubs)
-- `saveDataSet` / `queryDataSets` — manage DataSets (blocks of PVs × time ranges)
-- `saveAnnotation` / `queryAnnotations` — manage Annotations (text, tags, attributes, Calculations, provenance)
-- `exportData` — export DataSets and/or Calculations to HDF5, CSV, or XLSX
+- `saveDataSet` / `queryDataSets` / `getDataSet` / `deleteDataSet` — DataSet CRUD (blocks of PVs × time ranges); modernized in issue #132 (`patchDataSet` deferred stub; no `bulkSave*` by design)
+- `saveAnnotation` / `queryAnnotations` / `getAnnotation` / `deleteAnnotation` — Annotation CRUD (text, tags, attributes, Calculations, provenance); modernized in issue #132 (`patchAnnotation` deferred stub)
+- `getCalculations` — retrieve a Calculations object by id (issue #132); no save/delete/query by design — written via `saveAnnotation`, deleted with its Annotation, discovered via `queryAnnotations`
+- `exportData` — export DataSets, ad-hoc `dataBlocks`, and/or Calculations to HDF5, CSV, or XLSX; tabular formats are scalar-only
 
 ### DpIngestionStreamService (`ingestion_stream.proto`)
 - `subscribeDataEvent` — bidi-stream subscription that fires when a `PvConditionTrigger` condition is met in the live ingestion stream, optionally returning EventData for a time window around the trigger

@@ -24,54 +24,251 @@ import "common.proto";
  */
 service DpAnnotationService {
 
+  //
+  // ------------------- DataSet CRUD ---------------------------
+  //
+
   /*
-   * saveDataSet: Create or update a DataSet.
+   * saveDataSet()
    *
-   * This RPC sends a request to the annotation service to save a DataSet with the specified parameters.
-   * The annotation service performs validation, and for a valid request, it performs an "upsert" (insert or update)
-   * for the specified DataSet. The response may indicate rejection, an error in handling the request,
-   * or successful handling of the request.
+   * Create or replace a DataSet.
+   *
+   * Full replace (upsert) semantics: if the request omits id a new DataSet is created and
+   * the server generates its id; if id is supplied, ALL fields of the existing DataSet
+   * (name, ownerId, description, dataBlocks, tags, attributes, modifiedBy) are replaced
+   * with the request contents.  Callers must supply the complete desired state on every
+   * call — fields omitted from the request are not preserved.  Use patchDataSet() (future)
+   * for partial updates.
+   *
+   * The response may indicate rejection, an error handling the request, or a
+   * SaveDataSetResult with the id of the created or updated DataSet.
    */
   rpc saveDataSet(SaveDataSetRequest) returns (SaveDataSetResponse);
 
   /*
-   * queryDataSets: Unary (non-streaming) data sets query.
+   * getDataSet()
    *
-   * This RPC returns information about DataSets matching the specified query parameters. Client sends a single
-   * QueryDataSetsRequest and receives a single QueryDataSetsResponse. The response may indicate rejection,
-   * error in handling, or otherwise contains the data matching the query specification.  A query matching no data
-   * returns an empty result, not an ExceptionalResult.
+   * Retrieve a single DataSet by id.
+   *
+   * This is the content-retrieval path for the dataSetIds returned by queryAnnotations():
+   * annotation query results carry dataset ids only, not embedded dataset content.  To
+   * retrieve many datasets at once, prefer queryDataSets() with an IdCriterion listing the
+   * ids — it is a single round trip, whereas a getDataSet() per id is not.
+   *
+   * The response may indicate rejection, an error handling the request, or a
+   * GetDataSetResult containing the matching record.  If no DataSet exists with the
+   * specified id, an ExceptionalResult is returned.
+   */
+  rpc getDataSet(GetDataSetRequest) returns (GetDataSetResponse);
+
+  /*
+   * queryDataSets(): Unary (non-streaming) DataSets query.
+   *
+   * Query DataSet records using structured search criteria.  Client sends a single
+   * QueryDataSetsRequest and receives a single QueryDataSetsResponse.
+   *
+   * Pagination: limit sets the maximum number of records in a page; an unset or zero limit
+   * means a server-configured default page size, NOT an unbounded result.  Clients must
+   * follow nextPageToken to retrieve all matching records.  pageToken is an opaque
+   * continuation token obtained from a previous response; a malformed token is rejected
+   * with an ExceptionalResult.
+   *
+   * Ordering: results are ordered by id ascending.  The id is unique, which makes paging
+   * stable, and is approximately insertion order.  Ordering is part of this method's
+   * contract — paging is only well defined under a deterministic sort.
+   *
+   * The response may indicate rejection, an error in handling, or otherwise contains the
+   * DataSets matching the query criteria.  A query matching no data returns an empty
+   * result, not an ExceptionalResult.
    */
   rpc queryDataSets(QueryDataSetsRequest) returns (QueryDataSetsResponse);
 
   /*
-   * saveAnnotation
+   * deleteDataSet()
    *
-   * This RPC sends a request to the annotation service to create or update an annotation with the
-   * specified parameters. The annotation service performs validation, and for a valid request,
-   * attempts to "upsert" the annotation. The response may indicate rejection, an error in handling the request,
-   * or successful handling of the request.
+   * Delete the DataSet with the specified id.
+   *
+   * The request is rejected if any Annotation references the DataSet in its dataSetIds — a
+   * containment-strength association.  Delete or update those annotations first.  Use
+   * queryAnnotations() with a DataSetsCriterion to find them.
+   *
+   * The response may indicate rejection, an error handling the request, or a
+   * DeleteDataSetResult confirming the id of the deleted record.
+   */
+  rpc deleteDataSet(DeleteDataSetRequest) returns (DeleteDataSetResponse);
+
+  /*
+   * patchDataSet()
+   *
+   * Partial update of an existing DataSet.  Allows individual fields (name, description,
+   * dataBlocks, tags, attributes, modifiedBy) to be updated without replacing the entire
+   * record, unlike the full-replace semantics of saveDataSet().
+   *
+   * NOT YET IMPLEMENTED — calling this method returns an error response.
+   * Planned for a future release.  Field mask design is deferred.
+   *
+   * This method is defined now to reserve its name and message shapes as part
+   * of the standard CRUD pattern for metadata APIs in this service.
+   */
+  rpc patchDataSet(PatchDataSetRequest) returns (PatchDataSetResponse);
+
+
+  //
+  // ------------------- Annotation CRUD ---------------------------
+  //
+
+  /*
+   * saveAnnotation()
+   *
+   * Create or replace an Annotation.
+   *
+   * Full replace (upsert) semantics: if the request omits id a new Annotation is created
+   * and the server generates its id; if id is supplied, ALL fields of the existing
+   * Annotation (ownerId, dataSetIds, name, annotationIds, description, tags, attributes,
+   * calculations, modifiedBy) are replaced with the request contents.  Callers must supply
+   * the complete desired state on every call — fields omitted from the request are not
+   * preserved.  Use patchAnnotation() (future) for partial updates.
+   *
+   * WARNING: full replace applies to calculations as it does to every other field.  An
+   * update that omits calculations CLEARS the annotation's existing calculations.
+   *
+   * Calculations are created and replaced through this method — there is no
+   * saveCalculations().  The response returns calculationsId alongside annotationId when
+   * the request carried calculations, so the addressing key used by getCalculations(),
+   * CalculationsSpec, and ColumnProvenance is available without a further round trip.
+   *
+   * The response may indicate rejection, an error handling the request, or a
+   * SaveAnnotationResult with the id of the created or updated Annotation.
    */
   rpc saveAnnotation(SaveAnnotationRequest) returns (SaveAnnotationResponse);
 
   /*
-   * queryAnnotations: Unary (non-streaming) annotations query.
+   * getAnnotation()
    *
-   * This RPC is used by clients to query over annotations added to ingested data.
-   * Client sends a single QueryAnnotationsRequest with the query parameters, and receives a single
-   * QueryAnnotationsResponse with the query results. The response may indicate rejection, error in handling,
-   * or otherwise contains the data matching the query specification.  A query matching no data returns an empty
+   * Retrieve a single Annotation by id, with its Calculations content populated inline as a
+   * one-hop convenience for the common "open this annotation" case.  This is the only
+   * method that returns calculations content within an Annotation; queryAnnotations()
+   * returns calculationsId only.
+   *
+   * Associated DataSets are returned as ids (dataSetIds), not content; use getDataSet() or
+   * queryDataSets() with an IdCriterion to retrieve them.
+   *
+   * The response may indicate rejection, an error handling the request, or a
+   * GetAnnotationResult containing the matching record.  If no Annotation exists with the
+   * specified id, an ExceptionalResult is returned.
+   */
+  rpc getAnnotation(GetAnnotationRequest) returns (GetAnnotationResponse);
+
+  /*
+   * queryAnnotations(): Unary (non-streaming) Annotations query.
+   *
+   * Query Annotation records using structured search criteria.  Client sends a single
+   * QueryAnnotationsRequest and receives a single QueryAnnotationsResponse.
+   *
+   * Results carry references, not embedded content: each returned Annotation has
+   * dataSetIds and calculationsId, and neither dataset content nor calculations content is
+   * included.  Retrieve dataset content with a single queryDataSets() call whose
+   * IdCriterion lists the ids gathered across the returned annotations, and calculations
+   * content with getCalculations() or getAnnotation().
+   *
+   * Pagination: limit sets the maximum number of records in a page; an unset or zero limit
+   * means a server-configured default page size, NOT an unbounded result.  Clients must
+   * follow nextPageToken to retrieve all matching records.  pageToken is an opaque
+   * continuation token obtained from a previous response; a malformed token is rejected
+   * with an ExceptionalResult.
+   *
+   * Ordering: results are ordered by id ascending.  The id is unique, which makes paging
+   * stable, and is approximately insertion order.  Ordering is part of this method's
+   * contract — paging is only well defined under a deterministic sort.
+   *
+   * The response may indicate rejection, an error in handling, or otherwise contains the
+   * Annotations matching the query criteria.  A query matching no data returns an empty
    * result, not an ExceptionalResult.
    */
   rpc queryAnnotations(QueryAnnotationsRequest) returns (QueryAnnotationsResponse);
 
   /*
+   * deleteAnnotation()
+   *
+   * Delete the Annotation with the specified id.  The Annotation's Calculations, if any,
+   * are deleted with it — their lifecycle belongs to the owning Annotation.
+   *
+   * Unlike deleteDataSet(), this delete is NOT blocked by incoming references.  Other
+   * Annotations listing this annotation's id in annotationIds, and
+   * ColumnProvenance.derivedFrom links naming its calculations, are soft associations and
+   * are permitted to dangle.  A soft link that resolves to nothing means the referenced
+   * record was deleted, and readers must tolerate it.
+   *
+   * The response may indicate rejection, an error handling the request, or a
+   * DeleteAnnotationResult confirming the id of the deleted record.
+   */
+  rpc deleteAnnotation(DeleteAnnotationRequest) returns (DeleteAnnotationResponse);
+
+  /*
+   * patchAnnotation()
+   *
+   * Partial update of an existing Annotation.  Allows individual fields (dataSetIds, name,
+   * annotationIds, description, tags, attributes, calculations, modifiedBy) to be updated
+   * without replacing the entire record, unlike the full-replace semantics of
+   * saveAnnotation().
+   *
+   * NOT YET IMPLEMENTED — calling this method returns an error response.
+   * Planned for a future release.  Field mask design is deferred.
+   *
+   * This method is defined now to reserve its name and message shapes as part
+   * of the standard CRUD pattern for metadata APIs in this service.
+   */
+  rpc patchAnnotation(PatchAnnotationRequest) returns (PatchAnnotationResponse);
+
+
+  //
+  // ------------------- Calculations Retrieval ---------------------------
+  //
+
+  /*
+   * getCalculations()
+   *
+   * Retrieve a single Calculations object by id, without loading the owning Annotation's
+   * descriptive payload.  This is the click-through path: list annotations, pick one, then
+   * fetch exactly its calculations using the calculationsId the listing returned.
+   *
+   * Obtain calculationsId from SaveAnnotationResult, from Annotation.calculationsId in
+   * query or get results, or from a ColumnProvenance.CalculationsColumn provenance link.
+   *
+   * Calculations have no save, delete, or query method of their own, and the asymmetry is
+   * deliberate: they are written and replaced through saveAnnotation(), their lifecycle
+   * belongs to the owning Annotation (deleteAnnotation() removes them), and discovery goes
+   * through queryAnnotations().  Only retrieval needs a standalone path, because a client
+   * that already holds a calculationsId should not have to fetch an annotation to use it.
+   *
+   * The response may indicate rejection, an error handling the request, or a
+   * GetCalculationsResult containing the matching record.  If no Calculations object
+   * exists with the specified id, an ExceptionalResult is returned.
+   */
+  rpc getCalculations(GetCalculationsRequest) returns (GetCalculationsResponse);
+
+
+  //
+  // ------------------- Export ---------------------------
+  //
+
+  /*
    * exportData(): Export data to common file formats.
    *
-   * This RPC is used by clients to export data (both DataSets and Calculations) to file.  Client sends a single
-   * ExportDataRequest specifying the details of the data to be exported and the desired output file format,
-   * and receives a single response.  The response may indicate a problem handling the request, or otherwise contains
-   * details about the exported file including the path and optional (if configured) URL for accessing the file.
+   * This RPC is used by clients to export archived PV data and/or Annotation Calculations
+   * to file.  Client sends a single ExportDataRequest specifying the data to be exported
+   * and the desired output file format, and receives a single response.  The response may
+   * indicate a problem handling the request, or otherwise contains details about the
+   * exported file including the path and optional (if configured) URL for accessing the
+   * file.
+   *
+   * Data to export is specified by any combination of a saved DataSet (dataSetId), inline
+   * ad-hoc DataBlocks (dataBlocks), and Calculations (calculationsSpec).  At least one must
+   * be supplied; a request specifying none is rejected.  See ExportDataRequest.
+   *
+   * Output format restriction: the tabular formats (CSV, XLSX) can only represent scalar
+   * columns.  A DataSet or Calculations object containing array, image, or struct columns
+   * can be exported to HDF5, but a request to export it as CSV or XLSX is rejected.
    */
   rpc exportData(ExportDataRequest) returns (ExportDataResponse);
 
@@ -96,6 +293,16 @@ service DpAnnotationService {
    * queryPvMetadata()
    *
    * Query PV metadata records using structured search criteria.
+   *
+   * Pagination: limit sets the maximum number of records in a page; an unset or zero limit
+   * means a server-configured default page size, NOT an unbounded result.  Clients must
+   * follow nextPageToken to retrieve all matching records.  pageToken is an opaque
+   * continuation token obtained from a previous response; a malformed token is rejected
+   * with an ExceptionalResult.
+   *
+   * Ordering: results are ordered by pvName ascending.  pvName is unique, which makes
+   * paging stable.  Ordering is part of this method's contract — paging is only well
+   * defined under a deterministic sort.
    *
    * The response may indicate rejection, an error handling the request, or
    * a PvMetadataResult containing the matching records and pagination token.
@@ -196,6 +403,16 @@ service DpAnnotationService {
    *
    * Query Configuration records using structured search criteria.
    *
+   * Pagination: limit sets the maximum number of records in a page; an unset or zero limit
+   * means a server-configured default page size, NOT an unbounded result.  Clients must
+   * follow nextPageToken to retrieve all matching records.  pageToken is an opaque
+   * continuation token obtained from a previous response; a malformed token is rejected
+   * with an ExceptionalResult.
+   *
+   * Ordering: results are ordered by configurationName ascending.  configurationName is
+   * unique, which makes paging stable.  Ordering is part of this method's contract —
+   * paging is only well defined under a deterministic sort.
+   *
    * The response may indicate rejection, an error handling the request, or
    * a QueryConfigurationsResult containing the matching records and pagination token.
    */
@@ -285,6 +502,18 @@ service DpAnnotationService {
    * queryConfigurationActivations()
    *
    * Query ConfigurationActivation records using structured search criteria.
+   *
+   * Pagination: limit sets the maximum number of records in a page; an unset or zero limit
+   * means a server-configured default page size, NOT an unbounded result.  Clients must
+   * follow nextPageToken to retrieve all matching records.  pageToken is an opaque
+   * continuation token obtained from a previous response; a malformed token is rejected
+   * with an ExceptionalResult.
+   *
+   * Ordering: results are ordered by startTime ascending, then configurationName
+   * ascending, then record id ascending.  startTime alone is not unique, and the
+   * tiebreakers are what make paging stable across records sharing a start time.
+   * Ordering is part of this method's contract — paging is only well defined under a
+   * deterministic sort.
    *
    * The response may indicate rejection, an error handling the request, or
    * a QueryConfigurationActivationsResult containing the matching records and
@@ -394,7 +623,11 @@ service DpAnnotationService {
    * layer (an empty pvNames list matches all PVs — e.g., to enumerate which PVs a layer has
    * labeled).  Returns one page of SampleStatusBucket objects; additional pages are retrieved
    * by resubmitting the request with the nextPageToken from the previous response as
-   * pageToken.
+   * pageToken.  A malformed pageToken is rejected with an ExceptionalResult.
+   *
+   * Ordering: results are ordered by pvName ascending, then domain, then layer, then
+   * bucket start time.  Ordering is part of this method's contract — paging is only well
+   * defined under a deterministic sort.
    *
    * Bucket selection follows the TimeRange overlap test, and boundary buckets are returned
    * WHOLE (not trimmed) — matching DpQueryService.queryBuckets() — so a returned bucket may
@@ -472,19 +705,29 @@ service DpAnnotationService {
 //
 
 /*
- * Mechanism for identifying a set of data within the archive.  This will be used to support other features
- * such as adding annotations to data sets or exporting data sets.
+ * DataSet
+ *
+ * Mechanism for identifying a set of data within the archive, used to support other features such as adding
+ * annotations to data sets or exporting data sets.
  *
  * A DataSet specifies archived data across multiple DataBlocks.  Each DataBlock specifies a time range and list of
  * data sources (columns/PVs).
  *
+ * The primary key is an opaque server-generated id.  DataSet names are not unique, so unlike the natural-key
+ * metadata APIs in this service (PV metadata, Configuration), the id is the only way to address a specific
+ * record in getDataSet(), deleteDataSet(), patchDataSet(), and Annotation.dataSetIds.
  */
 message DataSet {
-  string id = 1; // Query results contain id of existing dataSet object, field is ignored when creating a new dataset via createDataSet().
-  string name = 2; // required name
+  string id = 1; // server-generated primary key
+  string name = 2; // required name; not unique
   string ownerId = 3; // required owner
   string description = 4; // optional textual description
   repeated DataBlock dataBlocks = 5; // required list of DataBlocks identifying data to include in DataSet.
+  repeated string tags = 6; // optional list of keywords / tags for cataloging DataSet
+  repeated dp.service.common.Attribute attributes = 7; // optional list of key/value attribute pairs for cataloging DataSet
+  dp.service.common.Timestamp createdTime = 8; // server-set: time the record was created
+  dp.service.common.Timestamp updatedTime = 9; // server-set: time of most recent save affecting the record
+  string modifiedBy = 10; // optional actor / user / service identity from most recent save
 }
 
 message DataBlock {
@@ -495,25 +738,43 @@ message DataBlock {
 
 
 //
-// ------------------- DataSet Creation Request/Response ---------------------------
+// ------------------- DataSet Save Request/Response ---------------------------
 //
 
 /*
  * SaveDataSetRequest
  *
- * Contains a DataSet object to be created or updated by the handler.  If the dataSetId field in the supplied
- * DataSet object is specified, the corresponding DataSet is updated.  Otherwise, a new DataSet is create and the
- * id will be generated by the service and returned in the corresponding CreateDataSetResult.
+ * Encapsulates the details for creating or replacing a DataSet.
+ *
+ * Full replace (upsert) semantics:
+ *   - If id is empty, a new DataSet is created and the server generates its id.
+ *   - If id is supplied, name / ownerId / description / dataBlocks / tags / attributes /
+ *     modifiedBy are ALL replaced with the values in this request.
+ *
+ * WARNING: Fields omitted from the request are NOT preserved on update.  Callers must
+ * supply the complete desired state on every save.  patchDataSet() (future placeholder)
+ * will provide partial-update semantics.
+ *
+ * Note: the audit timestamps createdTime and updatedTime are server-set and are not
+ * accepted as input; they are returned in getDataSet() and queryDataSets() responses only.
  */
 message SaveDataSetRequest {
-  DataSet dataSet = 1;
+  string id = 1; // optional id of existing DataSet to replace; empty = create a new DataSet
+  string name = 2; // required name; not unique
+  string ownerId = 3; // required owner
+  string description = 4; // optional textual description
+  repeated DataBlock dataBlocks = 5; // required list of DataBlocks identifying data to include in DataSet
+  repeated string tags = 6; // optional list of keywords / tags for cataloging DataSet
+  repeated dp.service.common.Attribute attributes = 7; // optional list of key/value attribute pairs for cataloging DataSet
+  string modifiedBy = 8; // optional actor / user / service identity performing this save
 }
 
 /*
  * SaveDataSetResponse
  *
- * Contains response to saveDataSet() API request.  Message payload is exceptionalResult if request
- * is rejected or an error is encountered by the handler, otherwise contains a CreateDataSetResult.
+ * Contains the result of a saveDataSet() request.  Payload is an ExceptionalResult if the
+ * request is rejected or an error is encountered by the handler, otherwise contains a
+ * SaveDataSetResult.
  */
 message SaveDataSetResponse {
 
@@ -528,7 +789,7 @@ message SaveDataSetResponse {
   /*
    * SaveDataSetResult
    *
-   * Contains the results of a successful request to create or update a DataSet, with the id of the
+   * Contains the results of a successful request to create or replace a DataSet, with the id of the
    * corresponding new or updated DataSet.
    */
   message SaveDataSetResult {
@@ -538,66 +799,261 @@ message SaveDataSetResponse {
 
 
 //
+// ------------------- DataSet Get / Delete / Patch ---------------------------
+//
+
+/*
+ * GetDataSetRequest
+ *
+ * Retrieve a single DataSet by id.
+ */
+message GetDataSetRequest {
+  string dataSetId = 1; // required id of the DataSet to retrieve
+}
+
+/*
+ * GetDataSetResponse
+ *
+ * Contains the result of a getDataSet() request.  Payload is an ExceptionalResult if the
+ * request is rejected, an error is encountered, or no DataSet exists with the specified
+ * id, otherwise contains a GetDataSetResult with the matching DataSet.
+ */
+message GetDataSetResponse {
+
+  dp.service.common.Timestamp responseTime = 1; // Indicates time response was generated.
+
+  oneof result {
+    dp.service.common.ExceptionalResult exceptionalResult = 10;
+    GetDataSetResult getDataSetResult = 11;
+  }
+
+  /*
+   * GetDataSetResult
+   *
+   * Contains the result of a successful getDataSet() request.
+   */
+  message GetDataSetResult {
+    DataSet dataSet = 1; // the matching DataSet record
+  }
+}
+
+/*
+ * DeleteDataSetRequest
+ *
+ * Delete the DataSet with the specified id.  The request is rejected if any Annotation
+ * references the DataSet in its dataSetIds; see deleteDataSet().
+ */
+message DeleteDataSetRequest {
+  string dataSetId = 1; // required id of the DataSet to delete
+}
+
+/*
+ * DeleteDataSetResponse
+ *
+ * Contains the result of a deleteDataSet() request.  Payload is an ExceptionalResult if
+ * the request is rejected (including rejection for referencing Annotations) or an error is
+ * encountered, otherwise contains a DeleteDataSetResult.
+ */
+message DeleteDataSetResponse {
+
+  dp.service.common.Timestamp responseTime = 1; // Indicates time response was generated.
+
+  oneof result {
+    dp.service.common.ExceptionalResult exceptionalResult = 10;
+    DeleteDataSetResult deleteDataSetResult = 11;
+  }
+
+  /*
+   * DeleteDataSetResult
+   *
+   * Contains the result of a successful deleteDataSet() request.
+   */
+  message DeleteDataSetResult {
+    string dataSetId = 1; // id of the deleted record
+  }
+}
+
+/*
+ * PatchDataSetRequest
+ *
+ * Partial update of an existing DataSet.
+ *
+ * NOT YET IMPLEMENTED.  The patch fields and field mask mechanism are deferred to the
+ * release that implements patchDataSet().  This message is defined now to reserve the name
+ * and establish the pattern.
+ */
+message PatchDataSetRequest {
+  string dataSetId = 1; // required id of the DataSet to update
+}
+
+/*
+ * PatchDataSetResponse
+ *
+ * Contains the result of a patchDataSet() request.  Payload is an ExceptionalResult if the
+ * request is rejected or an error is encountered, otherwise contains a PatchDataSetResult.
+ */
+message PatchDataSetResponse {
+
+  dp.service.common.Timestamp responseTime = 1; // Indicates time response was generated.
+
+  oneof result {
+    dp.service.common.ExceptionalResult exceptionalResult = 10;
+    PatchDataSetResult patchDataSetResult = 11;
+  }
+
+  /*
+   * PatchDataSetResult
+   *
+   * Contains the result of a successful patchDataSet() request.
+   */
+  message PatchDataSetResult {
+    string dataSetId = 1; // id of the updated record
+  }
+}
+
+
+//
 // ------------------- DataSet Query ---------------------------
 //
 
 /*
- * Query DataSet Request.
+ * QueryDataSetsRequest
  *
- * Contains parameters for a query over existing DataSets.  A query includes a list of
- * (one or more) criteria. The criterion can be used individually or combined for compound queries.
- * E.g., a query request might use an OwnerCriterion and TextCriterion to find DataSets
- * for the specified owner matching containing the specified text.
+ * Contains parameters for a query over existing DataSets.  A query includes a list of (zero or more) criteria,
+ * plus pagination parameters.
+ *
+ * Criteria semantics: multiple criteria in the criteria list are combined with AND; multiple values within a
+ * single criterion are combined with OR.  E.g., a request with an OwnerCriterion and a TagsCriterion listing two
+ * tags matches DataSets owned by that owner AND carrying either tag.  Requiring two tags simultaneously takes two
+ * separate TagsCriterion entries.  An empty criteria list matches all DataSets.
+ *
+ * Pagination: limit is the maximum number of records in a page; an unset or zero limit means a server-configured
+ * default page size, not an unbounded result.  pageToken is an opaque continuation token from the nextPageToken of
+ * a previous response; a malformed token is rejected with an ExceptionalResult.  Results are ordered by id
+ * ascending; see queryDataSets().
  */
 message QueryDataSetsRequest {
 
   repeated QueryDataSetsCriterion criteria = 1;
 
+  uint32 limit = 2;
+  string pageToken = 3;
+
+  /*
+   * QueryDataSetsCriterion
+   *
+   * A single search criterion.  Exactly one criterion must be set.
+   */
   message QueryDataSetsCriterion {
 
+    /*
+     * Field numbers are not in declaration order: the criteria carried over from earlier
+     * releases keep the numbers they have always had, and criteria added in the 1.16.0
+     * modernization take fresh numbers above them.  Declaration order follows the order the
+     * criteria are documented in.  Do not renumber.
+     */
     oneof criterion {
       IdCriterion idCriterion = 10; // Query by DataSet id.
       OwnerCriterion ownerCriterion = 11; // Query by owner.
-      TextCriterion textCriterion = 12; // Full text query over name and description fields.
-      PvNameCriterion pvNameCriterion = 13; // Query by PV name.
+      NameCriterion nameCriterion = 14; // Query by DataSet name.
+      TextCriterion textCriterion = 12; // Full text search.
+      PvNameCriterion pvNameCriterion = 13; // Query by PV name appearing in a DataBlock.
+      TagsCriterion tagsCriterion = 15; // Query by tag / keyword value.
+      AttributesCriterion attributesCriterion = 16; // Query attribute pairs by key and value.
     }
 
     /*
-     * Criterion used to search dataset id field.  "And" operator is used to combine with other criteria.
+     * IdCriterion
+     *
+     * Match DataSets by id.  Multiple ids within a single IdCriterion are ORed.
+     *
+     * This is the batch-retrieval path for the dataSetIds returned by queryAnnotations():
+     * gather the ids across the returned annotations and fetch all the referenced DataSets
+     * in one call, rather than issuing a getDataSet() per id.
      */
     message IdCriterion {
-      string id = 1;
+      repeated string ids = 1;
     }
 
     /*
-     * Criterion used to search dataset ownerId field.  "And" operator is used to combine with other criteria.
+     * OwnerCriterion
+     *
+     * Match DataSets by ownerId.  Multiple owners within a single OwnerCriterion are ORed.
      */
     message OwnerCriterion {
-      string ownerId = 1;
+      repeated string ownerIds = 1;
     }
 
     /*
-     * Criterion used to search dataset name and description fields.  "Or" operator is used to combine with other criteria.
+     * NameCriterion
+     *
+     * Match DataSets by name.  Values across all three sub-lists are ORed: a name matches
+     * if it satisfies any supplied value from any sub-list.
+     */
+    message NameCriterion {
+      repeated string exact = 1;    // exact string match
+      repeated string prefix = 2;   // prefix match
+      repeated string contains = 3; // substring match
+    }
+
+    /*
+     * TextCriterion
+     *
+     * Full-text search over the DataSet record's indexed text fields, which are name and
+     * description.
+     *
+     * This is a collection-level text index search, not a per-field match: the searchable
+     * field set is a property of the index and cannot be scoped to named fields at query
+     * time.  Use NameCriterion when a match must be restricted to the name.
      */
     message TextCriterion {
       string text = 1;
     }
 
     /*
-     * Criterion used to search data blocks for the specified PV name.  "Or" operator is used to combine with other criteria.
+     * PvNameCriterion
+     *
+     * Match DataSets having a DataBlock that names any of the specified PVs.  Multiple PV
+     * names within a single PvNameCriterion are ORed.
      */
     message PvNameCriterion {
-      string name = 1;
+      repeated string names = 1;
+    }
+
+    /*
+     * TagsCriterion
+     *
+     * Match DataSets that have any of the specified tags.  Multiple tags within a single
+     * TagsCriterion are ORed; use separate TagsCriterion entries in the outer criteria list
+     * (ANDed) to require multiple tags simultaneously.
+     */
+    message TagsCriterion {
+      repeated string values = 1;
+    }
+
+    /*
+     * AttributesCriterion
+     *
+     * Match DataSets by attribute key and optional value(s).
+     * key (maps to Attribute.name) is required.
+     * values is optional: if non-empty, the record must have the key with one of the
+     * specified values (OR); if empty, any record possessing the key matches regardless of
+     * its value (key-only / existence search).
+     */
+    message AttributesCriterion {
+      string key = 1;             // required; matches Attribute.name
+      repeated string values = 2; // optional; empty list = key-only search
     }
   }
 }
 
 /*
- * Query DataSet Response.
+ * QueryDataSetsResponse
  *
- * Contains the results of a DataSets query.  Payload is an ExceptionalResult if the request is invalid, an error is
- * encountered processing the query, or the query result is empty.  Otherwise payload is a DataSetsResult with a list
- * of DataSets matching the query parameters.
+ * Contains the results of a queryDataSets() request.  Payload is an ExceptionalResult if the request is rejected
+ * or an error is encountered processing the query, otherwise contains a DataSetsResult with the matching DataSets.
+ *
+ * An empty query result is returned as a DataSetsResult with an empty dataSets list (not an ExceptionalResult).
  */
 message QueryDataSetsResponse {
 
@@ -611,12 +1067,16 @@ message QueryDataSetsResponse {
   }
 
   /*
-   * Datasets Query Result Content.
+   * DataSetsResult
    *
-   * Result contains a list of DataSet messages matching the query parameters.
+   * Contains a page of DataSet records matching the query criteria, ordered by id ascending.
+   *
+   * nextPageToken is non-empty when additional pages are available; supply it as pageToken in the next request to
+   * retrieve the following page.  An empty nextPageToken indicates the last page.
    */
   message DataSetsResult {
     repeated DataSet dataSets = 1;
+    string nextPageToken = 2;
   }
 }
 
@@ -628,75 +1088,223 @@ message QueryDataSetsResponse {
 /*
  * Calculations.
  *
- * Defines the data structure used for representing Calculations in both creating and querying Annotations.
+ * Defines the data structure used for representing user-defined Calculations attached to an Annotation.
  * To the extent possible, it parallels the data structures used in the ingestion of regular time-series data in order
  * that user-defined Calculations can be treated in a similar fashion for the purposes of querying and exporting data
  * that includes both PV data and user-defined Calculations.
  *
- * The Calculations object includes a list of CalculationsDataFrames.  Each CalculationsDataFrame includes
- * a name, a DataTimestamps object, and a list of DataColumns, each of which contains a vector of data values for a
- * single Calculation and specifies a DataValue for each timestamp specified by the corresponding DataTimestamps object.
+ * The Calculations object includes a list of CalculationsDataFrames.  Each CalculationsDataFrame includes a name and
+ * a common.DataFrame, which carries the timestamps for the frame plus a list of typed data columns, each containing
+ * a value for each timestamp.
  *
  * It might be helpful to use the analogy of an Excel workbook.  The Calculations object is the workbook, and each
- * CalculationDataFrame is a worksheet in that workbook that contains a column of timestamps and columns of calculated
- * data with a value for each timestamp.
+ * CalculationsDataFrame is a worksheet in that workbook that contains a column of timestamps and columns of
+ * calculated data with a value for each timestamp.
+ *
+ * Lifecycle: Calculations are owned by an Annotation.  They are created and replaced through saveAnnotation() and
+ * are deleted when their Annotation is deleted.  They are stored separately and can be retrieved on their own with
+ * getCalculations(), which is why they carry their own id.
  */
 message Calculations {
 
+  /*
+   * id: server-generated primary key.
+   *
+   * This is the single addressing key for Calculations across the API — getCalculations(),
+   * common.CalculationsSpec, and common.ColumnProvenance.CalculationsColumn all take it.  It is returned in
+   * SaveAnnotationResult and in Annotation.calculationsId.  Ignored on input to saveAnnotation().
+   */
   string id = 1;
+
   repeated CalculationsDataFrame calculationDataFrames = 2;
 
+  /*
+   * CalculationsDataFrame
+   *
+   * One named frame of calculation output: a time axis plus the columns sharing it.
+   *
+   * Column typing: the frame's DataFrame provides the same typed scalar / array / image / struct / serialized
+   * column types used for ingestion, plus per-column ColumnMetadata, which is where column-level provenance
+   * (ColumnProvenance.derivedFrom) is recorded.  The legacy DataColumn type remains reachable through
+   * DataFrame.dataColumns as an escape hatch for heterogeneously typed columns or columns with missing values;
+   * prefer the typed columns otherwise.
+   *
+   * Sparsity: a calculation whose values occur at a different or sparser cadence than its siblings gets its own
+   * frame with its own time axis, rather than a dense column padded with missing values.  Data frames are cheap,
+   * and every column is dense on its own frame's axis.
+   *
+   * Export: the tabular output formats (CSV, XLSX) can only represent scalar columns; a frame containing array,
+   * image, or struct columns can be exported to HDF5 only.  See exportData().
+   */
   message CalculationsDataFrame {
-    string name = 1; // Required, name of data frame.
-    dp.service.common.DataTimestamps dataTimestamps = 2; // Required, specifies timestamps for data values.
-    repeated dp.service.common.DataColumn dataColumns = 3; // Required list of columns, each containing a data value for each timestamp.
+    string name = 1; // Required, name of data frame.  Must be distinct within a Calculations object — frame names
+                     // address frames in CalculationsSpec.dataFrameColumns and in provenance links, so duplicates
+                     // are unaddressable and are rejected.
+    dp.service.common.DataFrame frame = 2; // Required, timestamps plus the columns of calculated data.
   }
 }
 
+
 //
-// ------------------- Annotation Creation Request/Response ---------------------------
+// ------------------- Calculations Get Request/Response ---------------------------
+//
+
+/*
+ * GetCalculationsRequest
+ *
+ * Retrieve a single Calculations object by id.
+ */
+message GetCalculationsRequest {
+  string calculationsId = 1; // required id of the Calculations object to retrieve
+}
+
+/*
+ * GetCalculationsResponse
+ *
+ * Contains the result of a getCalculations() request.  Payload is an ExceptionalResult if
+ * the request is rejected, an error is encountered, or no Calculations object exists with
+ * the specified id, otherwise contains a GetCalculationsResult with the matching record.
+ */
+message GetCalculationsResponse {
+
+  dp.service.common.Timestamp responseTime = 1; // Indicates time response was generated.
+
+  oneof result {
+    dp.service.common.ExceptionalResult exceptionalResult = 10;
+    GetCalculationsResult getCalculationsResult = 11;
+  }
+
+  /*
+   * GetCalculationsResult
+   *
+   * Contains the result of a successful getCalculations() request.
+   */
+  message GetCalculationsResult {
+    Calculations calculations = 1; // the matching Calculations record
+  }
+}
+
+
+//
+// ------------------- Annotation Model ---------------------------
+//
+
+/*
+ * Annotation
+ *
+ * A user-supplied record describing archived data: descriptive text and cataloging metadata, the DataSets the
+ * description applies to, links to related Annotations, and optionally user-defined Calculations derived from the
+ * data.
+ *
+ * The primary key is an opaque server-generated id.  Annotation names are not unique, so the id is the only way to
+ * address a specific record in getAnnotation(), deleteAnnotation(), patchAnnotation(), and the annotationIds of
+ * other Annotations.
+ *
+ * References, not embedded content: dataSetIds and calculationsId are ids.  Dataset content is retrieved with
+ * getDataSet(), or in bulk with queryDataSets() and an IdCriterion listing the ids; calculations content is
+ * retrieved with getCalculations(), or inline from getAnnotation().
+ *
+ * Provenance: this message carries the document level of provenance — dataSetIds names the archived data a
+ * calculation was derived from, and annotationIds links to related Annotations.  The finer, column level lives in
+ * common.ColumnProvenance.derivedFrom on the individual calculation columns.  annotationIds are soft associations
+ * and may dangle; a link that resolves to nothing means the referenced Annotation was deleted.
+ */
+message Annotation {
+
+  string id = 1; // server-generated primary key
+  string ownerId = 2; // required annotation owner
+  repeated string dataSetIds = 3; // required list of ids of associated DataSets, might contain a single DataSet
+  string name = 4; // required brief name; not unique
+  repeated string annotationIds = 5; // optional list of ids of associated Annotations; soft links, may dangle
+  string description = 6; // optional free-form descriptive text
+  repeated string tags = 7; // optional list of keywords / tags for cataloging Annotation
+  repeated dp.service.common.Attribute attributes = 8; // optional list of key/value attribute pairs for cataloging Annotation
+
+  /*
+   * calculationsId: id of the Annotation's Calculations object, empty if it has none.
+   *
+   * Always populated when calculations exist, in both queryAnnotations() and getAnnotation() results, so it also
+   * serves as the presence indicator: an empty calculationsId means the Annotation has no calculations, and a
+   * non-empty one with an empty calculations field below means the content was simply not fetched by this method.
+   */
+  string calculationsId = 9;
+
+  /*
+   * calculations: Calculations content, populated by getAnnotation() ONLY.
+   *
+   * queryAnnotations() leaves this empty and returns calculationsId alone, so that listing annotations does not
+   * drag their full column sets along.  Use getCalculations() or getAnnotation() to retrieve the content.
+   */
+  Calculations calculations = 10;
+
+  dp.service.common.Timestamp createdTime = 11; // server-set: time the record was created
+  dp.service.common.Timestamp updatedTime = 12; // server-set: time of most recent save affecting the record
+  string modifiedBy = 13; // optional actor / user / service identity from most recent save
+}
+
+
+//
+// ------------------- Annotation Save Request/Response ---------------------------
 //
 
 /*
  * SaveAnnotationRequest
  *
- * A SaveAnnotationRequest message includes three required fields: ownerId (unique id of owner), dataSetIds (list of
- * unique ids of associated DataSets), and name (brief annotation name).  The optional "id" field specifies the unique id of an
- * existing annotation, if specified the corresponding existing Annotation object is updated, otherwise a new Annotation
- * is created. The request includes several optional fields used for linking to associated Annotations,
- * adding descriptive information, associating with an event / experiment, and attaching user-defined Calculations.
+ * Encapsulates the details for creating or replacing an Annotation.  Required fields: ownerId (unique id of
+ * owner), dataSetIds (list of ids of associated DataSets), and name (brief annotation name).  The remaining fields
+ * are optional, and are used for linking to associated Annotations, adding descriptive information, cataloging,
+ * and attaching user-defined Calculations.
  *
- * The lists of associated DataSet ids and Annotation ids are an initial attempt to meet the requirement for tracking
- * data provenance.  To add Calculations that are derived from (or related to) regular PV time-series data in the
- * archive, the following steps are taken:
+ * Full replace (upsert) semantics:
+ *   - If id is empty, a new Annotation is created and the server generates its id.
+ *   - If id is supplied, ownerId / dataSetIds / name / annotationIds / description / tags /
+ *     attributes / calculations / modifiedBy are ALL replaced with the values in this request.
  *
- * - Create a DataSet that contains one or more Data Blocks that reference the PVs and time range(s) from the
- *   archive used in the calculation.
- * - Create an Annotation containing the unique id of that DataSet in the list of dataSetIds, and includes the desired
- *   Calculations.
+ * WARNING: Fields omitted from the request are NOT preserved on update.  Callers must supply the complete desired
+ * state on every save.  This includes calculations: an update that omits calculations CLEARS the Annotation's
+ * existing calculations, which is the most costly instance of the general rule.  Read the current state with
+ * getAnnotation() and resend it if you are updating other fields.  patchAnnotation() (future placeholder) will
+ * provide partial-update semantics.
  *
- * To add Calculations that are derived from other user-defined Calculations (that are part of another Annotation like
- * the one crated above), the following step is taken:
+ * Note: the audit timestamps createdTime and updatedTime are server-set and are not accepted as input; they are
+ * returned in getAnnotation() and queryAnnotations() responses only.
  *
- * - Create an Annotation containing the unique id of the Annotation that contains the original Calculations in the
- *   list of associated annotationIds, and includes the new Calculations derived from the original.
+ * Recording provenance for Calculations derived from archived PV data:
+ *
+ * - Create a DataSet whose DataBlocks reference the PVs and time range(s) used in the calculation.
+ * - Save an Annotation listing that DataSet's id in dataSetIds, carrying the Calculations.
+ *
+ * For Calculations derived from other user-defined Calculations, list the id of the Annotation owning the original
+ * Calculations in annotationIds.
+ *
+ * Both of the above are document-level provenance.  Individual calculation columns can additionally carry
+ * column-level provenance in their ColumnMetadata: common.ColumnProvenance.derivedFrom names the specific source
+ * PVs or Calculations columns, and optionally the source time interval consumed.
  */
 message SaveAnnotationRequest {
-  string id = 1; // optional unique id of existing Annotation to update
+  string id = 1; // optional id of existing Annotation to replace; empty = create a new Annotation
   string ownerId = 2; // required annotation owner
   repeated string dataSetIds = 3; // required list of associated datasets, might contain a single dataset
   string name = 4; // required brief name
   repeated string annotationIds = 5; // optional list of associated annotations, for provenance / linking of calculations
-  string	comment = 6; // optional free-form comment text
+  string description = 6; // optional free-form descriptive text
   repeated string tags = 7; // optional list of keywords / tags for cataloging Annotation
   repeated dp.service.common.Attribute attributes = 8; // optional list of key/value attribute pairs for cataloging Annotation
-  Calculations calculations = 10; // optional user-defined calculations
+  string modifiedBy = 9; // optional actor / user / service identity performing this save
+
+  /*
+   * calculations: optional user-defined calculations.
+   *
+   * The id field of the supplied Calculations object is IGNORED on save; the server assigns the id and returns it
+   * in SaveAnnotationResult.calculationsId.  There is no saveCalculations() — this is the write path.
+   */
+  Calculations calculations = 10;
 }
 
 /*
  * SaveAnnotationResponse
  *
- * Contains details for response to request to create or update an Annotation.  Response includes either
+ * Contains details for response to request to create or replace an Annotation.  Response includes either
  * an ExceptionalResult describing a rejection or error situation, or a SaveAnnotationResult indicating the request
  * was handled successfully.
  */
@@ -713,11 +1321,136 @@ message SaveAnnotationResponse {
 /*
  * Successful Annotation Result.
  *
- * Contains the results of a successful request to save an annotation to a DataSet, including the id for the new
- * or updated annotation.
+ * Contains the results of a successful request to save an Annotation, including the id for the new or updated
+ * Annotation.
  */
   message SaveAnnotationResult {
+
     string annotationId = 1;
+
+    /*
+     * calculationsId: id of the saved Calculations object, empty if the request carried no calculations.
+     *
+     * Returned here so the addressing key used by getCalculations(), common.CalculationsSpec, and
+     * common.ColumnProvenance.CalculationsColumn is available without a further round trip.
+     */
+    string calculationsId = 2;
+  }
+}
+
+
+//
+// ------------------- Annotation Get / Delete / Patch ---------------------------
+//
+
+/*
+ * GetAnnotationRequest
+ *
+ * Retrieve a single Annotation by id, with its Calculations content populated inline.
+ */
+message GetAnnotationRequest {
+  string annotationId = 1; // required id of the Annotation to retrieve
+}
+
+/*
+ * GetAnnotationResponse
+ *
+ * Contains the result of a getAnnotation() request.  Payload is an ExceptionalResult if
+ * the request is rejected, an error is encountered, or no Annotation exists with the
+ * specified id, otherwise contains a GetAnnotationResult with the matching Annotation.
+ */
+message GetAnnotationResponse {
+
+  dp.service.common.Timestamp responseTime = 1; // Indicates time response was generated.
+
+  oneof result {
+    dp.service.common.ExceptionalResult exceptionalResult = 10;
+    GetAnnotationResult getAnnotationResult = 11;
+  }
+
+  /*
+   * GetAnnotationResult
+   *
+   * Contains the result of a successful getAnnotation() request.  The Annotation's
+   * calculations field is populated; its dataSetIds are ids only.
+   */
+  message GetAnnotationResult {
+    Annotation annotation = 1; // the matching Annotation record
+  }
+}
+
+/*
+ * DeleteAnnotationRequest
+ *
+ * Delete the Annotation with the specified id, along with its Calculations if any.
+ * Incoming soft references are permitted to dangle; see deleteAnnotation().
+ */
+message DeleteAnnotationRequest {
+  string annotationId = 1; // required id of the Annotation to delete
+}
+
+/*
+ * DeleteAnnotationResponse
+ *
+ * Contains the result of a deleteAnnotation() request.  Payload is an ExceptionalResult if
+ * the request is rejected or an error is encountered, otherwise contains a
+ * DeleteAnnotationResult.
+ */
+message DeleteAnnotationResponse {
+
+  dp.service.common.Timestamp responseTime = 1; // Indicates time response was generated.
+
+  oneof result {
+    dp.service.common.ExceptionalResult exceptionalResult = 10;
+    DeleteAnnotationResult deleteAnnotationResult = 11;
+  }
+
+  /*
+   * DeleteAnnotationResult
+   *
+   * Contains the result of a successful deleteAnnotation() request.
+   */
+  message DeleteAnnotationResult {
+    string annotationId = 1; // id of the deleted record
+  }
+}
+
+/*
+ * PatchAnnotationRequest
+ *
+ * Partial update of an existing Annotation.
+ *
+ * NOT YET IMPLEMENTED.  The patch fields and field mask mechanism are deferred to the
+ * release that implements patchAnnotation().  This message is defined now to reserve the
+ * name and establish the pattern.
+ */
+message PatchAnnotationRequest {
+  string annotationId = 1; // required id of the Annotation to update
+}
+
+/*
+ * PatchAnnotationResponse
+ *
+ * Contains the result of a patchAnnotation() request.  Payload is an ExceptionalResult if
+ * the request is rejected or an error is encountered, otherwise contains a
+ * PatchAnnotationResult.
+ */
+message PatchAnnotationResponse {
+
+  dp.service.common.Timestamp responseTime = 1; // Indicates time response was generated.
+
+  oneof result {
+    dp.service.common.ExceptionalResult exceptionalResult = 10;
+    PatchAnnotationResult patchAnnotationResult = 11;
+  }
+
+  /*
+   * PatchAnnotationResult
+   *
+   * Contains the result of a successful patchAnnotation() request.
+   */
+  message PatchAnnotationResult {
+    string annotationId = 1; // id of the updated record
   }
 }
 
@@ -727,86 +1460,154 @@ message SaveAnnotationResponse {
 //
 
 /*
- * Annotations Query Request.
+ * QueryAnnotationsRequest
  *
- * Contains a list of QueryAnnotationsCriterion for querying annotations. List can include a single criterion,
- * or multiple criteria for a compound query. E.g., a query request might use an OwnerCriterion and TextCriterion
- * to find annotations for the specified owner matching the text filter.
+ * Contains parameters for a query over existing Annotations.  A query includes a list of (zero or more) criteria,
+ * plus pagination parameters.
+ *
+ * Criteria semantics: multiple criteria in the criteria list are combined with AND; multiple values within a
+ * single criterion are combined with OR.  E.g., a request with an OwnerCriterion and a TagsCriterion listing two
+ * tags matches Annotations owned by that owner AND carrying either tag.  Requiring two tags simultaneously takes
+ * two separate TagsCriterion entries.  An empty criteria list matches all Annotations.
+ *
+ * Pagination: limit is the maximum number of records in a page; an unset or zero limit means a server-configured
+ * default page size, not an unbounded result.  pageToken is an opaque continuation token from the nextPageToken of
+ * a previous response; a malformed token is rejected with an ExceptionalResult.  Results are ordered by id
+ * ascending; see queryAnnotations().
  */
 message QueryAnnotationsRequest {
 
   repeated QueryAnnotationsCriterion criteria = 1;
 
+  uint32 limit = 2;
+  string pageToken = 3;
+
+  /*
+   * QueryAnnotationsCriterion
+   *
+   * A single search criterion.  Exactly one criterion must be set.
+   */
   message QueryAnnotationsCriterion {
 
+    /*
+     * Field numbers are not in declaration order: the criteria carried over from earlier
+     * releases keep the numbers they have always had, and criteria added in the 1.16.0
+     * modernization take fresh numbers above them.  Declaration order follows the order the
+     * criteria are documented in.  Do not renumber.
+     */
     oneof criterion {
-      IdCriterion idCriterion = 10;  // Query by Annotation unique id.
+      IdCriterion idCriterion = 10;  // Query by Annotation id.
       OwnerCriterion ownerCriterion = 11;  // Query by owner.
-      DataSetsCriterion dataSetsCriterion = 12; // Query by unique id of associated DataSet.
-      AnnotationsCriterion annotationsCriterion = 13; // Query by unique id of associated Annotation.
-      TextCriterion textCriterion = 14; // Full text query over name and comment fields.
+      DataSetsCriterion dataSetsCriterion = 12; // Query by id of associated DataSet.
+      AnnotationsCriterion annotationsCriterion = 13; // Query by id of associated Annotation.
+      NameCriterion nameCriterion = 17; // Query by Annotation name.
+      TextCriterion textCriterion = 14; // Full text search.
       TagsCriterion tagsCriterion = 15; // Query by tag / keyword value.
       AttributesCriterion attributesCriterion = 16; // Query attribute pairs by key and value.
     }
 
     /*
-     * Criterion used to query annotations by id.
+     * IdCriterion
+     *
+     * Match Annotations by id.  Multiple ids within a single IdCriterion are ORed.
      */
     message IdCriterion {
-      string id = 1;
+      repeated string ids = 1;
     }
 
     /*
-     * Criterion used to query annotations by owner id.
+     * OwnerCriterion
+     *
+     * Match Annotations by ownerId.  Multiple owners within a single OwnerCriterion are ORed.
      */
     message OwnerCriterion {
-      string ownerId = 1;
+      repeated string ownerIds = 1;
     }
 
     /*
-     * Criterion used to query annotations by id of associated dataset.
+     * DataSetsCriterion
+     *
+     * Match Annotations referencing any of the specified DataSet ids in dataSetIds.
+     * Multiple ids within a single DataSetsCriterion are ORed.
+     *
+     * This is also how to find the Annotations that block a deleteDataSet().
      */
     message DataSetsCriterion {
-      string dataSetId = 1;
+      repeated string dataSetIds = 1;
     }
 
     /*
-     * Criterion used to query annotations by id of associated annotation.
+     * AnnotationsCriterion
+     *
+     * Match Annotations referencing any of the specified Annotation ids in annotationIds.
+     * Multiple ids within a single AnnotationsCriterion are ORed.
      */
     message AnnotationsCriterion {
-      string annotationId = 1;
+      repeated string annotationIds = 1;
     }
 
     /*
-     * Criterion used to query annotations by text contained in the name and comment fields.
+     * NameCriterion
+     *
+     * Match Annotations by name.  Values across all three sub-lists are ORed: a name matches
+     * if it satisfies any supplied value from any sub-list.
+     */
+    message NameCriterion {
+      repeated string exact = 1;    // exact string match
+      repeated string prefix = 2;   // prefix match
+      repeated string contains = 3; // substring match
+    }
+
+    /*
+     * TextCriterion
+     *
+     * Full-text search over the Annotation record's indexed text fields, which are name and
+     * description.
+     *
+     * This is a collection-level text index search, not a per-field match: the searchable
+     * field set is a property of the index and cannot be scoped to named fields at query
+     * time.  Use NameCriterion when a match must be restricted to the name.
      */
     message TextCriterion {
       string text = 1;
     }
 
     /*
-     * Criterion used to query annotations by tag value.
+     * TagsCriterion
+     *
+     * Match Annotations that have any of the specified tags.  Multiple tags within a single
+     * TagsCriterion are ORed; use separate TagsCriterion entries in the outer criteria list
+     * (ANDed) to require multiple tags simultaneously.
      */
     message TagsCriterion {
-      string tagValue = 1;
+      repeated string values = 1;
     }
 
     /*
-     * Criterion used to query annotations by attribute key and value.
+     * AttributesCriterion
+     *
+     * Match Annotations by attribute key and optional value(s).
+     * key (maps to Attribute.name) is required.
+     * values is optional: if non-empty, the record must have the key with one of the
+     * specified values (OR); if empty, any record possessing the key matches regardless of
+     * its value (key-only / existence search).
      */
     message AttributesCriterion {
-      string key = 1;
-      string value = 2;
+      string key = 1;             // required; matches Attribute.name
+      repeated string values = 2; // optional; empty list = key-only search
     }
   }
 }
 
 /*
- * QueryAnnotationsResponse.
+ * QueryAnnotationsResponse
  *
- * Contains results from queryAnnotations() API request.  Message payload is either ExceptionalResult indicating
- * rejection, an error handling the request, or an empty query result, otherwise contains an AnnotationsResult with
- * an entry for each Annotation matching the query criteria.
+ * Contains the results of a queryAnnotations() request.  Payload is an ExceptionalResult if the request is
+ * rejected or an error is encountered processing the query, otherwise contains an AnnotationsResult with the
+ * matching Annotations.
+ *
+ * An empty query result is returned as an AnnotationsResult with an empty annotations list (not an
+ * ExceptionalResult).
  */
 message QueryAnnotationsResponse {
 
@@ -820,26 +1621,20 @@ message QueryAnnotationsResponse {
   }
 
   /*
-   * Annotations Query Result Content.
+   * AnnotationsResult
    *
-   * Result contains a list of Annotation messages, one for each annotation matching the query criteria.
+   * Contains a page of Annotation records matching the query criteria, ordered by id ascending.
+   *
+   * Returned Annotations carry references, not embedded content: dataSetIds and calculationsId are populated, and
+   * the calculations field is empty.  Fetch the referenced DataSets in a single queryDataSets() call using an
+   * IdCriterion listing the ids gathered across the page, and calculations with getCalculations().
+   *
+   * nextPageToken is non-empty when additional pages are available; supply it as pageToken in the next request to
+   * retrieve the following page.  An empty nextPageToken indicates the last page.
    */
   message AnnotationsResult {
-
     repeated Annotation annotations = 1;
-
-    message Annotation {
-      string id = 1; // unique id
-      string ownerId = 2; // owner unique id
-      repeated string dataSetIds = 3; // list of unique ids of associated DataSets, might contain a single DataSet
-      repeated DataSet dataSets = 4; // content for list of associated DataSets
-      string name = 5; // brief name / description
-      repeated string annotationIds = 6; // list of unique ids for associated Annotations
-      string	comment = 7; // free-form comment text
-      repeated string tags = 8; // list of keywords / tags
-      repeated dp.service.common.Attribute attributes = 9; // list of key/value attribute pairs
-      Calculations calculations = 11; // user-defined calculations
-    }
+    string nextPageToken = 2;
   }
 }
 
@@ -851,15 +1646,34 @@ message QueryAnnotationsResponse {
 /*
  * ExportDataRequest
  *
- * Used as parameter to the exportData() method.  Includes fields for specifying the id of the DataSet or
- * Calculations object to be exported, and an enum for specifying output format.  Both datasetId and calculationsSpec
- * are optional, but one or the other must be specified.
+ * Used as parameter to the exportData() method.  Specifies the data to be exported and the desired output file
+ * format.
+ *
+ * Data sources: dataSetId (a saved DataSet), dataBlocks (an inline ad-hoc specification), and calculationsSpec
+ * (Calculations content).  All three are optional individually, but AT LEAST ONE must be supplied; a request
+ * specifying none is rejected.  Sources may be combined in a single export, and their contents are merged into one
+ * output file.
+ *
+ * Output format restriction: the tabular formats (CSV, XLSX) can only represent scalar columns.  A DataSet or
+ * Calculations object containing array, image, or struct columns can be exported to HDF5, but a request to export
+ * it as CSV or XLSX is rejected.
  */
 message ExportDataRequest {
 
-  string dataSetId = 1;  // Required, specifies id of DataSet to be exported.
+  string dataSetId = 1;  // Optional, specifies id of a saved DataSet to be exported.
+
   dp.service.common.CalculationsSpec calculationsSpec = 2; // Optional, specifies details of Calculations to include in export.
-  ExportOutputFormat outputFormat = 3;  // Optional, specifies export output file format.
+
+  ExportOutputFormat outputFormat = 3;  // Required, specifies export output file format.
+
+  /*
+   * dataBlocks: Optional, an inline ad-hoc specification of data to export.
+   *
+   * Uses the same DataBlock building block a DataSet contains — a time range plus a list of PV names — and is
+   * treated by the server as a transient DataSet.  This is the path for a one-off export that does not warrant
+   * saving a DataSet; use dataSetId when the selection is worth keeping and re-using.
+   */
+  repeated DataBlock dataBlocks = 4;
 
   enum ExportOutputFormat {
     EXPORT_FORMAT_UNSPECIFIED = 0; // Indicates no enum value has been specified, and the request will be rejected.

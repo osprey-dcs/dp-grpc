@@ -26,15 +26,95 @@ message Attribute {
 /*
  * ColumnProvenance
  *
- * Describes the provenance of a data column. These fields are unconstrained and facility-specific.
- * The "source" identifies the origin of the data (e.g., an NTTable/column identifier), and the
- * "process" describes any processing applied to the source data (e.g., normalization).
- * The MLDP does not constrain, enforce, or otherwise interpret these values.
- * Clients should omit unset provenance fields rather than sending empty string values.
+ * Describes the provenance of a data column.  Provenance is recorded at two levels of
+ * detail, and this message is the finer of the two:
+ *
+ *   - Free-form description: "source" identifies the origin of the data (e.g., an
+ *     NTTable/column identifier), and "process" describes any processing applied to the
+ *     source data (e.g., normalization).  These fields are unconstrained and
+ *     facility-specific.
+ *   - Structured links: "derivedFrom" names the specific archived PVs and/or Calculations
+ *     columns this column was computed from, in a form a client can traverse.
+ *
+ * The two are complementary and both are retained — human description and
+ * machine-traversable link are different jobs.  The MLDP does not constrain, enforce,
+ * interpret, or validate any of these values; derivedFrom links are stored as supplied and
+ * are never checked for existence.  Clients should omit unset provenance fields rather
+ * than sending empty string values.
+ *
+ * ColumnProvenance rides inside ColumnMetadata, which every column message type carries,
+ * so one mechanism serves both Annotation Calculations columns and ingestion-side derived
+ * data.  There is no wire or memory cost when unused: an absent ColumnMetadata or
+ * ColumnProvenance and an empty derivedFrom list all encode to zero bytes.
+ *
+ * Document-level provenance is the coarser level and lives elsewhere: an Annotation's
+ * dataSetIds and annotationIds (see annotation.proto).  Rule of thumb for placement of
+ * derived data: one-time analysis products belong in Annotation Calculations, atomic with
+ * their descriptive context and outside the PV namespace; continuously-computed derived
+ * streams belong in ingestion as ordinary PVs.  Both use the derivedFrom links below.
  */
 message ColumnProvenance {
-  string source = 1;
-  string process = 2;
+
+  string source = 1;  // optional free-form description of the origin of the data
+  string process = 2; // optional free-form description of processing applied to the source data
+
+  /*
+   * derivedFrom: optional structured links to the column(s) this column was derived from.
+   *
+   * Repeated because a derived column may have multiple inputs (e.g., a difference of two
+   * PVs).  An empty list carries no assertion — it means provenance links were not
+   * supplied, not that the column is un-derived.
+   *
+   * Links are soft associations and MAY DANGLE: a link that resolves to nothing means the
+   * referenced record was deleted, and readers must tolerate it.  Deleting an Annotation
+   * deletes its Calculations with it, so links into a deleted Annotation's calculations
+   * dangle by the same rule.
+   */
+  repeated ColumnSource derivedFrom = 3;
+
+  /*
+   * ColumnSource
+   *
+   * Identifies one input to a derived column: either an archived PV or a column of a
+   * Calculations object.
+   */
+  message ColumnSource {
+
+    /*
+     * origin: identifies the source column.  Exactly one arm should be set.
+     *
+     * Named "origin" rather than "source" because ColumnProvenance already has a string
+     * field named source; a nested oneof of the same name would yield a confusing
+     * getSource() / getOriginCase() pair in the generated Java.
+     */
+    oneof origin {
+      string pvName = 1; // archived PV time-series data, by canonical PV name
+      CalculationsColumn calculationsColumn = 2; // a column of a Calculations object
+    }
+
+    /*
+     * timeRange: optional interval of the source consumed to produce this column.
+     *
+     * Matters for aggregations, whose source interval is not implied by the derived
+     * column's own timestamps — a daily-mean sample at midnight consumes the preceding
+     * day.  Omit when the derived column's own timestamps already describe the interval.
+     */
+    TimeRange timeRange = 3;
+  }
+
+  /*
+   * CalculationsColumn
+   *
+   * Addresses a single column within a Calculations object.  Calculations are addressed by
+   * calculationsId — the same key CalculationsSpec uses, the same key queryAnnotations
+   * returns, and the key accepted by DpAnnotationService.getCalculations() — so a link
+   * resolves in a single hop without loading the owning Annotation's descriptive payload.
+   */
+  message CalculationsColumn {
+    string calculationsId = 1; // id of the Calculations object containing the column
+    string frameName = 2; // name of the CalculationsDataFrame within that object
+    string columnName = 3; // name of the column within that data frame
+  }
 }
 
 /*
@@ -472,8 +552,14 @@ message SerializedDataColumn {
  * data structures for ingestion efficiency.
  *
  * This deprecation applies to ingestion only. DataColumn remains the supported representation for tabular/sample
- * query results (e.g. the Query V2 ColumnTable) and for Annotation Calculations, where an unset DataValue value
- * oneof provides native missing-value support that the dense column-oriented types do not.
+ * query results (e.g. the Query V2 ColumnTable), where an unset DataValue value oneof provides native
+ * missing-value support that the dense column-oriented types do not.
+ *
+ * In Annotation Calculations, DataColumn is reachable through DataFrame.dataColumns and serves as an escape
+ * hatch rather than the default: prefer the typed column-oriented types for calculation output, and reach for
+ * DataColumn when a column is heterogeneously typed or has missing values at some timestamps.  A sparse
+ * calculation does not need DataColumn — give it its own CalculationsDataFrame with its own (sparse) time axis,
+ * on which its typed columns are dense.  Data frames are cheap.
  *
  */
 message DataColumn {
@@ -661,6 +747,10 @@ message Image {
  *
  * DataTimestamps can be expressed using either a SamplingClock with start time, sample period,
  * and sample count, or using a TimestampsList with an explicit list of timestamps for the data values.
+ *
+ * DataFrame is used both as the unit of ingestion and as the content of an Annotation Calculations data frame
+ * (see Calculations in annotation.proto), so calculation output has access to the same typed column types and
+ * per-column ColumnMetadata — including the derivedFrom provenance links — as ingested data.
  */
 message DataFrame {
 
@@ -822,7 +912,15 @@ message SampleStatusBucket {
  */
 message CalculationsSpec {
 
-  string calculationsId = 1; // Required, specifies unique id of Calculations object to include in the result.
+  /*
+   * calculationsId: Required, specifies unique id of Calculations object to include in the result.
+   *
+   * Obtain it from SaveAnnotationResult.calculationsId when saving, or from Annotation.calculationsId in
+   * queryAnnotations() / getAnnotation() results.  It is the single addressing key for Calculations across
+   * the API: this spec, DpAnnotationService.getCalculations(), and ColumnProvenance.CalculationsColumn all
+   * use it.
+   */
+  string calculationsId = 1;
 
   // dataFrameColumns: Optional, map of CalculationsDataFrame name to the columns in that frame to include in the result.
   map<string, ColumnNameList> dataFrameColumns = 2;
