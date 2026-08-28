@@ -11,13 +11,10 @@ Reference documentation: [Data Set API](../../README.md#data-set-api),
 Shared response-checking, criteria, paging, and time conventions live in
 [conventions.md](conventions.md) and are not repeated here.
 
-> The DataSet and Annotation APIs were modernized in 1.16.0 and the changes are **breaking**.
-> `getDataSet`, `deleteDataSet`, `getAnnotation`, `deleteAnnotation`, and `getCalculations` are
-> new; `SaveDataSetRequest` no longer embeds a `DataSet`; `Annotation` is now a top-level message
-> and its `comment` field is renamed `description`; query results carry ids rather than embedded
-> DataSet and Calculations content; both queries are paged; and Calculations frames now carry a
-> `common.DataFrame`.  Code written against an earlier release will not compile against these
-> stubs.
+> The DataSet and Annotation APIs were modernized in 1.16.0 and the changes are **breaking** —
+> code written against an earlier release will not compile against these stubs.  See the
+> [1.16.0 release notes](https://github.com/osprey-dcs/dp-grpc/releases/tag/rel-1.16.0) for
+> what changed and an upgrade checklist.
 
 ### Imports used by the examples
 
