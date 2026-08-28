@@ -1787,11 +1787,16 @@ message SavePvMetadataResponse {
  *   - Within PvNameCriterion and AliasesCriterion, the exact / prefix /
  *     contains sub-lists are each ORed internally and then ORed together:
  *     a name matches if it satisfies any value from any sub-list.
- *   - An empty criteria list is rejected with an ExceptionalResult; at least
- *     one criterion is required.
+ *   - An empty criteria list matches ALL records; it is not an error.  This is
+ *     the browse-all entry point: no criteria means no filtering, so every
+ *     record is eligible, subject to the pagination bound below.
  *
  * Pagination:
  *   - limit specifies the maximum number of records to return per response.
+ *     When limit is unset (0), a server default of 100 applies.  The default is
+ *     unconditional: it does not depend on whether criteria were supplied, so
+ *     removing the last criterion from a request does not change its page size.
+ *     There is no way to request an unbounded result; page through instead.
  *   - pageToken is omitted on the first request; subsequent requests supply
  *     the nextPageToken returned in the previous response.
  *   - An empty nextPageToken in the response indicates no further pages.
@@ -2197,11 +2202,16 @@ message GetConfigurationResponse {
  *     a record must satisfy ALL criteria to be returned.
  *   - Within a single criterion, multiple values are combined with logical OR:
  *     a record satisfies the criterion if it matches ANY supplied value.
- *   - An empty criteria list is rejected with an ExceptionalResult; at least
- *     one criterion is required.
+ *   - An empty criteria list matches ALL records; it is not an error.  This is
+ *     the browse-all entry point: no criteria means no filtering, so every
+ *     record is eligible, subject to the pagination bound below.
  *
  * Pagination:
  *   - limit specifies the maximum number of records to return per response.
+ *     When limit is unset (0), a server default of 100 applies.  The default is
+ *     unconditional: it does not depend on whether criteria were supplied, so
+ *     removing the last criterion from a request does not change its page size.
+ *     There is no way to request an unbounded result; page through instead.
  *   - pageToken is omitted on the first request; subsequent requests supply
  *     the nextPageToken returned in the previous response.
  *   - An empty nextPageToken in the response indicates no further pages.
@@ -2612,11 +2622,16 @@ message GetConfigurationActivationResponse {
  *     a record must satisfy ALL criteria to be returned.
  *   - Within a single criterion, multiple values are combined with logical OR:
  *     a record satisfies the criterion if it matches ANY supplied value.
- *   - An empty criteria list is rejected with an ExceptionalResult; at least
- *     one criterion is required.
+ *   - An empty criteria list matches ALL records; it is not an error.  This is
+ *     the browse-all entry point: no criteria means no filtering, so every
+ *     record is eligible, subject to the pagination bound below.
  *
  * Pagination:
  *   - limit specifies the maximum number of records to return per response.
+ *     When limit is unset (0), a server default of 100 applies.  The default is
+ *     unconditional: it does not depend on whether criteria were supplied, so
+ *     removing the last criterion from a request does not change its page size.
+ *     There is no way to request an unbounded result; page through instead.
  *   - pageToken is omitted on the first request; subsequent requests supply
  *     the nextPageToken returned in the previous response.
  *   - An empty nextPageToken in the response indicates no further pages.
