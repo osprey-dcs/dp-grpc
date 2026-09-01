@@ -208,8 +208,14 @@ Three things the combining rules do not let you say:
   internally *and* ORed with each other.  For a conjunction, use two `PvNameCriterion` criteria.
 - **Negation.**  There is no NOT operator, and no "attribute absent" criterion.
 
-Also: **at least one criterion is required.**  An empty `criteria` list is rejected with an
-`ExceptionalResult` — there is no "match all" query, so you cannot dump the catalog in one call.
+Also: **an empty `criteria` list matches every record.**  It is not an error — it is the
+browse-all entry point, for walking the catalog when you have nothing to filter on.  Note that
+this is not a way to dump the catalog in a single call: an unset `limit` gets the
+server-configured default page size rather than an unbounded result, so browsing everything
+means paging through it like any other query.
+
+> Empty-criteria match-all applies from the release paired with dp-service #245; earlier
+> releases rejected an empty `criteria` list with an `ExceptionalResult`.
 
 Page through the results with the [standard loop](conventions.md#pagination), reading
 `getPvMetadataResult().getPvMetadataList()` and continuing while `nextPageToken` is non-empty.

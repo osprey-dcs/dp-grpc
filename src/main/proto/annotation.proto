@@ -1793,10 +1793,11 @@ message SavePvMetadataResponse {
  *
  * Pagination:
  *   - limit specifies the maximum number of records to return per response.
- *     When limit is unset (0), a server default of 100 applies.  The default is
- *     unconditional: it does not depend on whether criteria were supplied, so
- *     removing the last criterion from a request does not change its page size.
- *     There is no way to request an unbounded result; page through instead.
+ *     An unset or zero limit means a server-configured default page size, NOT an
+ *     unbounded result.  The default is unconditional: it does not depend on
+ *     whether criteria were supplied, so removing the last criterion from a
+ *     request does not change its page size.  Follow nextPageToken to retrieve
+ *     all matching records.
  *   - pageToken is omitted on the first request; subsequent requests supply
  *     the nextPageToken returned in the previous response.
  *   - An empty nextPageToken in the response indicates no further pages.
@@ -2208,10 +2209,11 @@ message GetConfigurationResponse {
  *
  * Pagination:
  *   - limit specifies the maximum number of records to return per response.
- *     When limit is unset (0), a server default of 100 applies.  The default is
- *     unconditional: it does not depend on whether criteria were supplied, so
- *     removing the last criterion from a request does not change its page size.
- *     There is no way to request an unbounded result; page through instead.
+ *     An unset or zero limit means a server-configured default page size, NOT an
+ *     unbounded result.  The default is unconditional: it does not depend on
+ *     whether criteria were supplied, so removing the last criterion from a
+ *     request does not change its page size.  Follow nextPageToken to retrieve
+ *     all matching records.
  *   - pageToken is omitted on the first request; subsequent requests supply
  *     the nextPageToken returned in the previous response.
  *   - An empty nextPageToken in the response indicates no further pages.
@@ -2628,10 +2630,11 @@ message GetConfigurationActivationResponse {
  *
  * Pagination:
  *   - limit specifies the maximum number of records to return per response.
- *     When limit is unset (0), a server default of 100 applies.  The default is
- *     unconditional: it does not depend on whether criteria were supplied, so
- *     removing the last criterion from a request does not change its page size.
- *     There is no way to request an unbounded result; page through instead.
+ *     An unset or zero limit means a server-configured default page size, NOT an
+ *     unbounded result.  The default is unconditional: it does not depend on
+ *     whether criteria were supplied, so removing the last criterion from a
+ *     request does not change its page size.  Follow nextPageToken to retrieve
+ *     all matching records.
  *   - pageToken is omitted on the first request; subsequent requests supply
  *     the nextPageToken returned in the previous response.
  *   - An empty nextPageToken in the response indicates no further pages.

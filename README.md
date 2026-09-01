@@ -708,6 +708,8 @@ A QueryPvMetadataRequest contains a list of QueryPvMetadataCriterion entries and
 - **TagsCriterion** — match records that have any of the specified tags.
 - **AttributesCriterion** — match by attribute key and optional value(s); an empty values list matches any record that has the key regardless of value (key-only / existence search).
 
+An empty criteria list matches all PV metadata records.
+
 ----
 
 The response payload is an ExceptionalResult if the request is rejected or an error is encountered, otherwise a PvMetadataResult containing a list of PvMetadata records and a nextPageToken for retrieving subsequent pages.  An empty nextPageToken indicates the last page.  An empty result set is returned as a PvMetadataResult with an empty list, not an ExceptionalResult.
@@ -862,6 +864,8 @@ A QueryConfigurationsRequest contains a list of QueryConfigurationsCriterion ent
 - **AttributesCriterion** — match by attribute key and optional value(s); an empty values list matches any record that has the key regardless of value (key-only / existence search).
 - **ParentCriterion** — match records whose `parentConfigurationName` equals any of the specified values (direct children only; recursive traversal not yet supported).
 
+An empty criteria list matches all Configurations.
+
 The response payload is an ExceptionalResult if the request is rejected or an error is encountered, otherwise a QueryConfigurationsResult containing a list of Configuration records and a `nextPageToken` for retrieving subsequent pages.  An empty result set is returned as a QueryConfigurationsResult with an empty list, not an ExceptionalResult.
 
 ----
@@ -972,6 +976,8 @@ A QueryConfigurationActivationsRequest contains a list of QueryConfigurationActi
 - **CategoryCriterion** — match activations whose configuration belongs to any of the specified categories.
 - **TagsCriterion** — match activations that have any of the specified tags.
 - **AttributesCriterion** — match by attribute key and optional value(s); an empty values list matches any activation that has the key (key-only / existence search).
+
+An empty criteria list matches all ConfigurationActivations.
 
 The response payload is an ExceptionalResult if the request is rejected or an error is encountered, otherwise a QueryConfigurationActivationsResult containing a list of ConfigurationActivation records and a `nextPageToken` for retrieving subsequent pages.  An empty result set is returned as a QueryConfigurationActivationsResult with an empty list, not an ExceptionalResult.
 
