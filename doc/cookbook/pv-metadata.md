@@ -214,8 +214,9 @@ this is not a way to dump the catalog in a single call: an unset `limit` gets th
 server-configured default page size rather than an unbounded result, so browsing everything
 means paging through it like any other query.
 
-> Empty-criteria match-all applies from the release paired with dp-service #245; earlier
-> releases rejected an empty `criteria` list with an `ExceptionalResult`.
+> Empty-criteria match-all applies from the release paired with
+> [dp-service PR #251](https://github.com/osprey-dcs/dp-service/pull/251); earlier releases
+> rejected an empty `criteria` list with an `ExceptionalResult`.
 
 Page through the results with the [standard loop](conventions.md#pagination), reading
 `getPvMetadataResult().getPvMetadataList()` and continuing while `nextPageToken` is non-empty.
