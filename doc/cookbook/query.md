@@ -449,10 +449,19 @@ The criteria are strictly **non-temporal** — there is no time criterion here.
 specification to reconcile.  (The `Criterion` field numbers start at 12 because 10–11 are the
 temporal arms in the `annotation.proto` message this mirrors, deliberately omitted.)
 
-> **The easiest way to silently get zero rows.**  A `ConfigurationSelector` with an **empty
-> `criteria` list matches nothing** and returns an empty result.  To query the full `TimeRange`
-> unconditionally, **omit the `ConfigurationSelector` entirely** — do not send an empty one.
-> Guard any code that builds the selector conditionally.
+> **Omit the selector; never send an empty one.**  To query the full `TimeRange`
+> unconditionally, **omit the `ConfigurationSelector` entirely** — that is how you say "no
+> configuration restriction".  A selector that is present with an **empty `criteria` list is
+> rejected** with an `ExceptionalResult` (`configurationSelector.criteria list must not be
+> empty`), as is a criterion with no arm set.  Guard any code that builds the selector
+> conditionally, so that dropping the last criterion drops the whole selector rather than
+> leaving an empty one behind.
+>
+> This is the opposite of the rule for `PvSelector.MetadataQuery` on the same `QuerySpec`, where
+> an empty `criteria` list matches **all** PVs.  The asymmetry is deliberate: the
+> `ConfigurationSelector` is an optional restriction, so matching everything would be a no-op
+> identical to omitting it, and rejecting keeps a half-built selector from quietly returning
+> nothing.
 
 See the [Machine Configuration recipe](machine-configuration.md) for finding the configuration or
 activation you want to reference.

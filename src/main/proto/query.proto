@@ -268,6 +268,16 @@ message PvSelector {
    * within a criterion are ORed.  The criterion shape intentionally duplicates
    * QueryPvMetadataRequest.QueryPvMetadataCriterion rather than sharing a type,
    * so each stays self-documenting in its own context.
+   *
+   * An empty criteria list matches ALL PVs in the archive; it is not rejected.
+   * Note that this is the opposite of the empty-criteria rule on the sibling
+   * QuerySpec.configurationSelector, which rejects — see ConfigurationSelector
+   * for why the two differ.  It also differs from the other two arms of this
+   * oneof, which reject their empty forms (an empty pvNameList.pvNames, a blank
+   * pvNamePattern.pattern).  Prefer stating an all-PV query explicitly as a
+   * pvNamePattern of ".*", which is visible in the request; an empty
+   * metadataQuery is more often a half-built request than an intent, and
+   * resolves to a scan of every PV in the archive.
    */
   message MetadataQuery {
 
@@ -332,9 +342,23 @@ message PvSelector {
  * QueryConfigurationActivationsRequest.QueryConfigurationActivationsCriterion
  * but are defined locally; they are not a shared type.)
  *
- * If no criteria are supplied, the selector matches nothing and the query
- * returns an empty result (omit ConfigurationSelector entirely to query the full
- * TimeRange unconditionally).
+ * To query the full TimeRange unconditionally, omit ConfigurationSelector
+ * entirely — that is the way to express "no configuration restriction".  Do not
+ * send a selector with an empty criteria list: at least one criterion is
+ * required, and an empty criteria list is rejected with an ExceptionalResult
+ * (as is a criterion with no arm set).  Guard any code that builds the selector
+ * conditionally, so that dropping the last criterion drops the whole selector.
+ *
+ * Rejecting rather than matching everything is deliberate, and differs from the
+ * empty-criteria rule on the query methods in annotation.proto (queryPvMetadata,
+ * queryConfigurations, queryConfigurationActivations), where an empty criteria
+ * list matches ALL records.  Those are browse-all list endpoints whose criteria
+ * list is the whole request, so empty has to mean something.  This selector is
+ * an optional restriction on a query whose subject is already chosen by
+ * pvSelector: matching everything would be a no-op indistinguishable from
+ * omitting the field, so an empty criteria list is far more likely to be a
+ * half-built request than an intent, and rejecting keeps a mis-built selector
+ * from silently returning an empty result.
  */
 message ConfigurationSelector {
 
