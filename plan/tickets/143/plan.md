@@ -13,6 +13,13 @@
   #132 triage and is recorded in [`../132/plan.md`](../132/plan.md) D13 and
   [`../132/dp-service-handoff.md`](../132/dp-service-handoff.md)
 
+> **Correction, 2026-09-16.** Work breakdown step 5 points at `../132/release-notes.md` as the
+> staging area for this ticket's release-notes text. That file is gone. Release notes for this
+> repo are now version-controlled under `doc/release-notes/`, one document per release, and the
+> `ValueStatus` removal is a first-class section of
+> [`doc/release-notes/rel-1.16.0.md`](../../../doc/release-notes/rel-1.16.0.md) — promoted from
+> an aside, as step 5 directed.
+
 `DataValue.ValueStatus` embeds acquisition-time alarm/status information — EPICS-style
 severity, status code, and message — per sample, inside the value itself. The Sample Status
 API supersedes it. This ticket removes the mechanism from the protos while leaving `DataValue`

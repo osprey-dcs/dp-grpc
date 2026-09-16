@@ -11,6 +11,7 @@ This document includes the following information:
 - [Entity-centric API summary](#entity-api-summary)
 - [API use cases and patterns](#api-use-cases-and-patterns)
 - [API cookbook: worked examples](#api-cookbook)
+- [Release notes](#release-notes)
 - [Entity API details](#entity-api-details)
   - [Provider API](#provider-api)
   - [PV Time-Series Data API](#pv-time-series-data-api)
@@ -156,8 +157,22 @@ worked examples that span multiple calls — "how do I actually do X?" — see t
 | [Generating and importing Python stubs](doc/cookbook/python-stubs.md) | How Python stubs are produced from these protos and published via dp-python-lib |
 
 Recipes use Java, the language whose stubs this repo builds.  Python users should start with
-[dp-python-lib](https://github.com/craigmcchesney/dp-python-lib), a client library wrapping this
+[dp-python-lib](https://github.com/osprey-dcs/dp-python-lib), a client library wrapping this
 API.
+
+
+## Release Notes
+
+Per-release notes live under [`doc/release-notes/`](doc/release-notes/), one document per
+release, covering what changed since the previous one and what upgrading requires.
+
+| Release | Notes |
+|---|---|
+| 1.16.0 | [rel-1.16.0](doc/release-notes/rel-1.16.0.md) — Sample Status API, modernized DataSet and Annotation APIs, `DataValue.ValueStatus` removed.  **Breaking.** |
+
+Releases before 1.16.0 were documented on the
+[GitHub release](https://github.com/osprey-dcs/dp-grpc/releases) itself.  The `rel-*` tags remain
+the authority on what any past release contained.
 
 
 ---
