@@ -16,6 +16,7 @@ against these, and two changes alter query results without raising an error. Rea
 - [`DataValue.ValueStatus` removed (dp-grpc #143)](#api-change-datavaluevaluestatus-removed-dp-grpc-issue-143)
 - [Empty criteria list means match-all (dp-service #245)](#behavior-change-an-empty-criteria-list-matches-all-records-dp-service-issue-245)
 - [ConfigurationSelector empty-criteria reject (dp-grpc #149)](#configurationselector-rejects-an-empty-criteria-list-dp-grpc-issue-149)
+- [Python clients](#python-clients)
 - [Documentation](#documentation)
 - [Build and release infrastructure (dp-grpc #133)](#build-and-release-infrastructure-dp-grpc-issue-133)
 
@@ -335,11 +336,32 @@ as a `pvNamePattern` of `".*"`, which is visible in the request.
 
 Comment-only change: no wire format or generated Java API change.
 
+## Python clients
+
+The breaking changes above are breaking for Python callers too. These protos are the source of the
+Python stubs published by
+**[dp-python-lib](https://github.com/osprey-dcs/dp-python-lib)**: a release tag regenerates them
+and opens a PR against that repo, pinning the versions together, so **`dp-python-lib` 1.16.0
+carries the stubs from dp-grpc `rel-1.16.0`**. Upgrade that dependency to pick up the Sample Status
+API and the reshaped DataSet and Annotation messages, and consult its own release notes for
+client-library API changes, which are that repo's to describe.
+
+The reshaped messages reach Python callers as the renamed and re-nested fields described above —
+`Annotation.description`, top-level `Annotation`, a flat `SaveDataSetRequest` — and Python's
+absence of compile-time checking means these surface at runtime rather than at build time. The
+criteria AND/OR change and the unset-`limit` paging change are silent in every language. Steps 2
+through 6 of the [upgrade checklist](#upgrading-from-1150) apply unchanged.
+
+For stub layout and how to generate them from a checkout, see
+[Generating and importing Python stubs](../cookbook/python-stubs.md).
+
 ## Documentation
 
 `README.md` gains full reference sections for the Sample Status API and for the new DataSet,
 Annotation, and Calculations methods, and the Data Set / Annotation sections are rewritten for the
-reshaped messages.
+reshaped messages. Its Python client-library link pointed at a stale
+`craigmcchesney/dp-python-lib` org and now points at `osprey-dcs`, matching every other reference
+in the repo.
 
 New cookbook recipe: **[Sample status](../cookbook/sample-status.md)** — labeling samples with
 status codes (dense and sparse), querying statuses, re-labeling a range, and filtering data queries

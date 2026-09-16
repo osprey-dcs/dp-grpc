@@ -14,6 +14,16 @@
 
 Read this alongside the proto diff once it merges; where the two disagree, the protos win.
 
+> **Status update, 2026-09-16.** The handoff is complete. The proto change merged as
+> [dp-grpc #145](https://github.com/osprey-dcs/dp-grpc/pull/145) and ships in dp-grpc 1.16.0; the
+> dp-service implementation landed under dp-service #248 and ships in dp-service 1.16.0. This
+> document is kept as the point-in-time record of what was handed over — it is **not** a current
+> description of either codebase. For current behavior, read the protos and `README.md`; for what
+> the release changed, read
+> [`doc/release-notes/rel-1.16.0.md`](../../../doc/release-notes/rel-1.16.0.md) here and the
+> dp-service notes of the same name. The line references below were verified against dp-service
+> `cbcd522` and have certainly drifted.
+
 ## Reading the line references
 
 Every code reference here was verified against dp-service `cbcd522`. **Line numbers in the

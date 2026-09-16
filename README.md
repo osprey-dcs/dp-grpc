@@ -156,7 +156,7 @@ worked examples that span multiple calls — "how do I actually do X?" — see t
 | [Generating and importing Python stubs](doc/cookbook/python-stubs.md) | How Python stubs are produced from these protos and published via dp-python-lib |
 
 Recipes use Java, the language whose stubs this repo builds.  Python users should start with
-[dp-python-lib](https://github.com/craigmcchesney/dp-python-lib), a client library wrapping this
+[dp-python-lib](https://github.com/osprey-dcs/dp-python-lib), a client library wrapping this
 API.
 
 
