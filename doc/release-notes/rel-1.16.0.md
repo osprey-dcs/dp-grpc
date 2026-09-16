@@ -5,8 +5,8 @@ generated Java stubs; the server-side implementation of everything below ships i
 1.16.0, whose release notes cover the behavior each change produces.
 
 **1.16.0 is a breaking release.** Client code written against 1.15.0 stubs will not compile
-against these, and two changes alter query results without raising an error. Read
-[Upgrading from 1.15.0](#upgrading-from-1150) before rebuilding.
+against these, and two changes alter query results without raising an error. Read the
+**Upgrading from 1.15.0** section below before rebuilding.
 
 ## Contents
 
@@ -49,8 +49,8 @@ as anomalous, a rule engine flagging out-of-range values, an operator marking a 
 suspect points. It is also the designated replacement for the `DataValue.ValueStatus` mechanism
 removed in this same release (#143 below).
 
-Reference: [Sample Status API](../../README.md#sample-status-api).
-Worked examples: [Sample status cookbook](../cookbook/sample-status.md).
+Reference: [Sample Status API](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/README.md#sample-status-api).
+Worked examples: [Sample status cookbook](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/doc/cookbook/sample-status.md).
 
 ### The model
 
@@ -67,7 +67,7 @@ samples by exact (pvName, timestamp) equality at **nanosecond precision**, so pr
 using timestamps taken from query results or exact `SamplingClock` arithmetic; a recomputed or
 rounded timestamp silently fails to match.
 
-Three new messages in [`common.proto`](../../src/main/proto/common.proto), paralleling the
+Three new messages in [`common.proto`](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/src/main/proto/common.proto), paralleling the
 existing time-series model:
 
 | Message | Parallels | Role |
@@ -79,7 +79,7 @@ existing time-series model:
 ### New methods
 
 Four methods on `DpAnnotationService`, in
-[`annotation.proto`](../../src/main/proto/annotation.proto):
+[`annotation.proto`](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/src/main/proto/annotation.proto):
 
 - **`saveSampleStatuses`** — batch upsert. Upsert is per individual status and replaces **in
   full**: re-saving with an empty `confidence` or `reasons` list clears previously stored values.
@@ -101,7 +101,7 @@ the registry record shape is deferred to the release that implements them.
 ### `QuerySpec.sampleStatusSelector` on the V2 query methods
 
 `QuerySpec` field 4, reserved in 1.15.0 pending this API, is now `SampleStatusSelector` in
-[`query.proto`](../../src/main/proto/query.proto). A selector names a required `domain`, optional
+[`query.proto`](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/src/main/proto/query.proto). A selector names a required `domain`, optional
 `layers` (empty = all), optional `statusCodes` (empty = any code), and a required `mode`:
 
 - **`MODE_INCLUDE_MATCHING`** — return only samples carrying a matching status. Unlabeled samples
@@ -133,10 +133,10 @@ brings them to the CRUD conventions established by the PV metadata, machine conf
 sample status APIs. **Method names are unchanged, but message shapes and query semantics changed
 incompatibly.**
 
-Reference: [Data Set API](../../README.md#data-set-api),
-[Annotation API](../../README.md#annotation-api).
-Worked examples: [Data sets, annotations, export cookbook](../cookbook/datasets-and-annotations.md).
-Design record: [`plan/tickets/132/plan.md`](../../plan/tickets/132/plan.md).
+Reference: [Data Set API](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/README.md#data-set-api),
+[Annotation API](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/README.md#annotation-api).
+Worked examples: [Data sets, annotations, export cookbook](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/doc/cookbook/datasets-and-annotations.md).
+Design record: [`plan/tickets/132/plan.md`](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/plan/tickets/132/plan.md).
 
 ### API CHANGE: message shapes
 
@@ -254,7 +254,7 @@ Status API above is the designated replacement: acquisition-time alarm and statu
 captured in a status domain, keyed by (pvName, timestamp, domain, layer), and can be assigned or
 updated post-ingestion by automated cleaning tools.
 
-Design record: [`plan/tickets/143/plan.md`](../../plan/tickets/143/plan.md).
+Design record: [`plan/tickets/143/plan.md`](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/plan/tickets/143/plan.md).
 
 The field carried a deprecation note from the moment the Sample Status API landed. Removing it is
 what actually closes the mechanism off — while it was present, new producers kept finding it and
@@ -353,10 +353,10 @@ The reshaped messages reach Python callers as the renamed and re-nested fields d
 `Annotation.description`, top-level `Annotation`, a flat `SaveDataSetRequest` — and Python's
 absence of compile-time checking means these surface at runtime rather than at build time. The
 criteria AND/OR change and the unset-`limit` paging change are silent in every language. Steps 2
-through 6 of the [upgrade checklist](#upgrading-from-1150) apply unchanged.
+through 6 of the **Upgrading from 1.15.0** checklist apply unchanged.
 
 For stub layout and how to generate them from a checkout, see
-[Generating and importing Python stubs](../cookbook/python-stubs.md).
+[Generating and importing Python stubs](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/doc/cookbook/python-stubs.md).
 
 ## Documentation
 
@@ -366,11 +366,11 @@ reshaped messages. Its Python client-library link pointed at a stale
 `craigmcchesney/dp-python-lib` org and now points at `osprey-dcs`, matching every other reference
 in the repo.
 
-New cookbook recipe: **[Sample status](../cookbook/sample-status.md)** — labeling samples with
+New cookbook recipe: **[Sample status](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/doc/cookbook/sample-status.md)** — labeling samples with
 status codes (dense and sparse), querying statuses, re-labeling a range, and filtering data queries
-by status. The **[Data sets, annotations, export](../cookbook/datasets-and-annotations.md)** recipe
+by status. The **[Data sets, annotations, export](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/doc/cookbook/datasets-and-annotations.md)** recipe
 is substantially rewritten for #132, including column-level provenance.
-**[API conventions](../cookbook/conventions.md)** now states the unset-limit and malformed-token
+**[API conventions](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/doc/cookbook/conventions.md)** now states the unset-limit and malformed-token
 rules once, and calls out server-streaming queries as the exception to the paging scheme.
 
 **Per-recipe "Verified against" headers are gone** (dp-grpc #141). That convention asserts when someone
@@ -382,11 +382,11 @@ short in-body notes — "added in 1.15.0 and not available in earlier releases" 
 about the API rather than about when someone last looked, so they never need updating.
 
 **Plan documents are now version-controlled** under `plan/tickets/<N>/`, starting with
-[#132](../../plan/tickets/132/plan.md) (plus a dp-service handoff document) and
-[#143](../../plan/tickets/143/plan.md). Drafts still live outside the repo; a plan is promoted here
+[#132](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/plan/tickets/132/plan.md) (plus a dp-service handoff document) and
+[#143](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/plan/tickets/143/plan.md). Drafts still live outside the repo; a plan is promoted here
 once its decisions are settled, so it gets PR review and a stable URL readable cross-repo. A
 committed plan is a point-in-time record, not a living document — see
-[`plan/README.md`](../../plan/README.md).
+[`plan/README.md`](https://github.com/osprey-dcs/dp-grpc/blob/rel-1.16.0/plan/README.md).
 
 ## Build and release infrastructure (dp-grpc Issue #133)
 
