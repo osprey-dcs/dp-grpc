@@ -127,26 +127,14 @@ jobs:
           mkdir -p dp-python-lib/src/dp_python_lib/grpc
           cp -r out/python/* dp-python-lib/src/dp_python_lib/grpc/
 
-      # -----------------------------
-      # Bump version (release only)
-      # -----------------------------
-      - name: Update pyproject.toml version
-        if: env.DRY_RUN != 'true' && steps.mode.outputs.release == 'true'
-        run: |
-          cd dp-python-lib
-          python - <<EOF
-          from pathlib import Path
-          import re
-
-          path = Path("pyproject.toml")
-          text = path.read_text()
-          text = re.sub(
-              r'version\\s*=\\s*"[^"]+"',
-              'version = "${{ steps.mode.outputs.version }}"',
-              text,
-          )
-          path.write_text(text)
-          EOF
+      # No version bump step: dp-python-lib derives its version from its own git tag via
+      # setuptools-scm (`dynamic = ["version"]` in its pyproject.toml), so there is no
+      # literal `version = "..."` for this workflow to rewrite.  An earlier step tried
+      # anyway, substituting on an unanchored `version\s*=\s*"[^"]+"`.  That pattern matched
+      # the tail of ruff's `target-version = "py310"` and rewrote it to the release version,
+      # after which ruff could not parse its own config and failed dp-python-lib's CI on
+      # every release sync.  The two repos' versions still line up, but by release process
+      # (dp-python-lib is tagged to match) rather than by anything this workflow edits.
 
       # -----------------------------
       # Commit + push
@@ -164,7 +152,7 @@ jobs:
           cd dp-python-lib
           BRANCH="grpc-sync-${{ github.run_id }}"
           git checkout -B "$BRANCH"
-          git add src/dp_python_lib/grpc pyproject.toml || true
+          git add src/dp_python_lib/grpc || true
           git commit -m "Sync Python gRPC stubs from dp-grpc${{ steps.mode.outputs.release == 'true' && format(' rel-{0}', steps.mode.outputs.version) || '' }}" || echo "No changes to commit"
 
       - name: Push branch

@@ -21,12 +21,16 @@ this repo runs on every `rel-*` tag (and on manual dispatch).  It:
 1. Runs `grpc_tools.protoc` over `src/main/proto/*.proto`
 2. Rewrites the generated absolute imports to relative ones
 3. Copies the result into `dp-python-lib` at `src/dp_python_lib/grpc/`
-4. On a release tag, sets the `dp-python-lib` version to match the dp-grpc release version
-5. Opens a pull request against `dp-python-lib`
+4. Opens a pull request against `dp-python-lib`
 
-Because step 4 pins the versions together, **`dp-python-lib` version *N* contains the stubs from
-dp-grpc `rel-N`**.  If you are running dp-grpc 1.14.0, `dp-python-lib` 1.14.0 has the matching
-message definitions.
+**`dp-python-lib` version *N* contains the stubs from dp-grpc `rel-N`**.  If you are running
+dp-grpc 1.14.0, `dp-python-lib` 1.14.0 has the matching message definitions.
+
+That correspondence is a release-process convention, not something this workflow enforces.
+`dp-python-lib` derives its own version from its own git tag via setuptools-scm, so the sync PR
+carries only regenerated stubs; the versions line up because `dp-python-lib` is tagged `rel-N`
+once that PR merges.  See its `CLAUDE.md` ("Cutting a release").  A sync PR that has been opened
+but not yet merged and tagged is the window where the two repos disagree.
 
 ## Importing the published stubs
 

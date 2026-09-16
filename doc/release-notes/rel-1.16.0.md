@@ -344,9 +344,9 @@ Comment-only change: no wire format or generated Java API change.
 The breaking changes above are breaking for Python callers too. These protos are the source of the
 Python stubs published by
 **[dp-python-lib](https://github.com/osprey-dcs/dp-python-lib)**: a release tag regenerates them
-and opens a PR against that repo, pinning the versions together, so **`dp-python-lib` 1.16.0
-carries the stubs from dp-grpc `rel-1.16.0`**. Upgrade that dependency to pick up the Sample Status
-API and the reshaped DataSet and Annotation messages, and consult its own release notes for
+and opens a PR against that repo, and that repo is then tagged to match, so **`dp-python-lib`
+1.16.0 carries the stubs from dp-grpc `rel-1.16.0`**. Upgrade that dependency to pick up the Sample
+Status API and the reshaped DataSet and Annotation messages, and consult its own release notes for
 client-library API changes, which are that repo's to describe.
 
 The reshaped messages reach Python callers as the renamed and re-nested fields described above —
