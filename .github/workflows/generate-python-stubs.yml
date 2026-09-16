@@ -129,10 +129,12 @@ jobs:
 
       # No version bump step: dp-python-lib derives its version from its own git tag via
       # setuptools-scm (`dynamic = ["version"]` in its pyproject.toml), so there is no
-      # literal `version = "..."` for this workflow to rewrite.  A step that did try
-      # substituted on an unanchored `version\s*=\s*"[^"]+"`, which matched the tail of
-      # ruff's `target-version = "py310"` and rewrote it to the release version.  Ruff then
-      # could not parse its own config and failed dp-python-lib's CI on every sync.
+      # literal `version = "..."` for this workflow to rewrite.  An earlier step tried
+      # anyway, substituting on an unanchored `version\s*=\s*"[^"]+"`.  That pattern matched
+      # the tail of ruff's `target-version = "py310"` and rewrote it to the release version,
+      # after which ruff could not parse its own config and failed dp-python-lib's CI on
+      # every release sync.  The two repos' versions still line up, but by release process
+      # (dp-python-lib is tagged to match) rather than by anything this workflow edits.
 
       # -----------------------------
       # Commit + push
