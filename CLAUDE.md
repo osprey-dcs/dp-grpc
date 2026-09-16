@@ -315,6 +315,10 @@ often spans several PRs, and a breaking release leads with an "Upgrading from <p
 checklist that calls out silent behavior changes separately from compile errors. Add each new
 document to the table in the `## Release Notes` section of `README.md`.
 
+`release.yml` publishes `doc/release-notes/rel-<version>.md` as the GitHub release body via
+`body_path`, and fails the release job early if the file is not present on the tagged commit.
+Write the notes and merge them **before** pushing the `rel-*` tag.
+
 ## Planning Artifacts
 
 Two tiers:
