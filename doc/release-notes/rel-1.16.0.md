@@ -35,8 +35,8 @@ The compile errors are the easy half — the compiler finds every one of them. I
    `TagsCriterion` entries used to match *either* tag and now match *both*. This change is
    **silent** — no error, a different result set.
 4. **Add paging loops wherever a result was assumed complete.** An unset `limit` now means a
-   server-configured default page size, not an unbounded result, on all six paged
-   `DpAnnotationService` queries — `queryPvMetadata` in particular was previously unbounded.
+   server-configured default page size, not an unbounded result, on every paged
+   `DpAnnotationService` query — `queryPvMetadata` in particular was previously unbounded.
 5. **Check anywhere an empty criteria list was relied on to fail.** It now matches all records
    and returns the first page of the collection instead of being rejected.
 6. **Guard conditionally-built `ConfigurationSelector`s.** An empty one is rejected, not ignored.
@@ -185,15 +185,16 @@ named fields at query time. Use the new `NameCriterion` to restrict a match to t
 - `queryDataSets` and `queryAnnotations` are **now paged** — `limit` / `pageToken` on the request,
   `nextPageToken` on the result. They previously had no paging fields and returned every match in
   one message.
-- Across all six paged `DpAnnotationService` queries, an unset or zero `limit` means a
+- Across every paged `DpAnnotationService` query, an unset or zero `limit` means a
   **server-configured default page size, not an unbounded result**. This changes `queryPvMetadata`,
   which was previously unbounded: a caller that omitted `limit` and read the whole result in one
   response now receives one page and must follow `nextPageToken`.
 - A malformed `pageToken` is **rejected** with an `ExceptionalResult` rather than silently
   restarting at page one.
-- **Result ordering is now part of the API contract** for all six queries: `id` ascending for
-  DataSets and Annotations, `pvName` for PV metadata, `configurationName` for configurations, and
-  `startTime` then `configurationName` then id for configuration activations.
+- **Result ordering is now part of the API contract** for every paged query: `id` ascending for
+  DataSets and Annotations, `pvName` for PV metadata, `configurationName` for configurations,
+  `startTime` then `configurationName` then id for configuration activations, and `pvName` then
+  domain then layer then bucket start time for sample statuses.
 
 ### New methods
 
@@ -321,12 +322,14 @@ of an error.
 conditionally, so that dropping the last criterion drops the whole selector rather than leaving an
 empty one behind.
 
-This is the opposite of the dp-service #245 rule above, and the comment now says why, so the
-next reader of both files does not file the ticket in reverse. Those are browse-all list endpoints whose criteria
-list is the whole request, so empty has to mean something. This selector is an optional restriction
-on a query whose subject is already chosen by `pvSelector`, so matching everything would be a no-op
-indistinguishable from omitting the field — which makes an empty list far more likely to be a
-half-built request than an intent.
+This is the opposite of the dp-service #245 rule above, and the comment now says why, so the next
+reader of both files does not file the ticket in reverse.
+
+The #245 endpoints are browse-all list queries whose criteria list is the whole request, so empty
+has to mean something. `ConfigurationSelector` is an optional restriction on a query whose subject
+is already chosen by `pvSelector`, so matching everything would be a no-op indistinguishable from
+omitting the field — which makes an empty list far more likely to be a half-built request than an
+intent.
 
 In the same change, `PvSelector.MetadataQuery` now documents its own empty-criteria behavior, which
 is **match-all** and was previously unstated. Two selectors on one `QuerySpec` with opposite empty

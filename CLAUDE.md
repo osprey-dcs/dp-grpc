@@ -67,7 +67,7 @@ Modernized in issue #132 to the standard CRUD conventions, with breaking message
 
 Query results carry **references, not embedded content**: `queryAnnotations` returns `dataSetIds` and `calculationsId`, and the batch-fetch path is one `queryDataSets` with a repeated `IdCriterion`. Referential rules: `deleteDataSet` is rejected while Annotations reference the DataSet; `deleteAnnotation` is not blocked and leaves soft links (`annotationIds`, `derivedFrom`) dangling.
 
-Both queries are paged and ordered by `id` ascending. Across all six paged annotation queries, an unset/zero `limit` means a server-configured default page size (not unbounded), and a malformed `pageToken` is rejected; criteria are ANDed with values ORed within a criterion.
+Both queries are paged and ordered by `id` ascending. Across every paged annotation query, an unset/zero `limit` means a server-configured default page size (not unbounded), and a malformed `pageToken` is rejected; criteria are ANDed with values ORed within a criterion.
 
 ### DataFrame (`common.proto`)
 The unit of ingestion. Contains `DataTimestamps` (either a `SamplingClock` or explicit `TimestampList`) plus lists of the column message types above.
@@ -307,6 +307,13 @@ Generated Java sources appear in `target/generated-sources/protobuf/`.
 ## Releases
 
 Tagged as `rel-<version>`. Release artifacts (JAR + SHA-256 checksum) are attached to GitHub releases. See `README.env` for download and verification instructions.
+
+Release notes are version-controlled under `doc/release-notes/`, one document per release
+(`rel-<version>.md`), starting with 1.16.0; earlier releases were documented on the GitHub
+release itself. A release note is organized by issue ticket rather than by PR, since a ticket
+often spans several PRs, and a breaking release leads with an "Upgrading from <previous>"
+checklist that calls out silent behavior changes separately from compile errors. Add each new
+document to the table in the `## Release Notes` section of `README.md`.
 
 ## Planning Artifacts
 

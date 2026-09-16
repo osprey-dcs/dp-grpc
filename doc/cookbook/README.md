@@ -48,8 +48,8 @@ stubs are laid out.
 - Recipes describe the **current state of the protos on `main`**.  Only the latest release is
   supported, so there is no per-recipe "verified against" header; the `rel-*` tags are the
   authority on what any past release contained.  Where a recipe uses something added in a
-  specific release, it says so inline — "added in 1.15.0 and not available in earlier
-  releases".
+  specific release, it says so in a short blockquote note near the top of the recipe or the
+  section concerned — "> added in 1.15.0 and not available in earlier releases".
 - Code omits imports, channel setup, and error handling except where a recipe is specifically
   about those things.
 - `ts(...)` in Java examples stands for whatever helper you use to build a
