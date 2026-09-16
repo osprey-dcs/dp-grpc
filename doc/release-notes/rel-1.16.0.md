@@ -291,12 +291,17 @@ The proto comments documented the rejection the server no longer performs, which
 saying nothing. This change tracks dp-service #245, which removed the rejection server-side;
 there is no dp-grpc issue behind it.
 
-These comments also now state the **unset-limit default of 100**, which they previously left
-unsaid. That was harmless while empty criteria were rejected outright and actively wrong
-afterwards, since an unset `limit` on `queryPvMetadata` used to mean "return everything" with an
-always-blank `nextPageToken`. The default is documented as **unconditional**: it does not depend on
-whether criteria were supplied, so removing the last criterion from a request does not change its
-page size. There is no way to request an unbounded result.
+These comments also now state that an unset or zero `limit` means a **server-configured default
+page size, not an unbounded result**, which they previously left unsaid. That was harmless while
+empty criteria were rejected outright and actively wrong afterwards, since an unset `limit` on
+`queryPvMetadata` used to mean "return everything" with an always-blank `nextPageToken`. The
+default is documented as **unconditional**: it does not depend on whether criteria were supplied,
+so removing the last criterion from a request does not change its page size. Follow
+`nextPageToken` to retrieve all matching records.
+
+The protos deliberately do not name the concrete default. Pinning a literal into a shipped
+contract falsifies it the moment the server's value changes, and that value is expected to become
+configurable — consult your deployment rather than the proto for the current number.
 
 `queryDataSets` and `queryAnnotations` changed the same way, as part of #132 above.
 
