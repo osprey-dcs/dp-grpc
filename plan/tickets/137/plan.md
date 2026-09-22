@@ -108,25 +108,44 @@ reason. The rewrite should move it ahead of `mvn -B package` in the build job, w
 nothing and makes the rationale true. A rehearsal has no `rel-` tag and therefore no notes to
 look for, so it needs the same push-only guard dp-python-lib uses.
 
-**D9 — Do not adopt dp-python-lib's release-body assembly, and accept what that costs.** That repo
-concatenates its notes with verification instructions into a `RELEASE_BODY.md` in the build job.
-The reason is not that its publish job skips the checkout — it is that `action-gh-release` treats
-`body_path` as taking precedence over `body` outright, a fallback rather than a companion, so
-setting both would silently drop the instructions. Concatenation is how it gets the hand-written
-notes *and* the verification instructions into one body.
+**D9 — Do not adopt dp-python-lib's release-body assembly.** That repo concatenates its notes with
+verification instructions into a generated `RELEASE_BODY.md` in the build job. The reason is not
+that its publish job skips the checkout — it is that `action-gh-release` treats `body_path` as
+taking precedence over `body` outright, a fallback rather than a companion, so setting both would
+silently drop the instructions. Concatenation is how it gets the hand-written notes *and* the
+verification instructions into one body.
 
-This repo keeps `body_path` pointed at the hand-written notes, because the verification
-instructions are better placed in `doc/release-notes/rel-X.Y.Z.md` and `README.env`, where they
-are reviewable and version-controlled rather than generated at release time. The publish job
-therefore needs the notes file, and receiving it through the artifact upload is simpler than a
-second checkout; the work breakdown assumes that.
+**The asymmetry that decides this: dp-python-lib has no `README.env`; all three Java repos do.**
+Each of `dp-grpc`, `dp-service`, and `dp-desktop-app` carries a near-identical
+"Release Artifacts and Verification" file with a release-contents asset list and numbered
+verification steps — and all three already use it for exactly the checksum instructions this change
+replaces. dp-python-lib concatenates because it had nowhere else to put this content; its only
+options were the generated body or nothing. The Java repos have a dedicated, version-controlled,
+already-conventional home for it.
 
-**The consequence, accepted deliberately:** the release page will carry the notes and four
-assets, one of them a `.cosign.bundle`, with no on-page instructions for verifying it. A consumer
-has to reach `README.env` to learn what the bundle is for. dp-python-lib made the opposite call.
-The mitigation is D7 — the release notes for the version that carries this must themselves
-include the verification commands, since the notes *are* the release body. Do not let that item
-slip to `README.env` alone.
+So this is not "match the sibling repo or diverge from it" — it is a choice between two
+consistencies, and consistency with the three Java repos' own established convention is worth more
+than consistency with one Python repo that solved a problem these repos do not have. Concatenating
+would also put the same instructions in two independently drifting places, since `README.env` would
+still document verification. Keeping `body_path` pointed at the hand-written notes preserves a
+property worth having: **the published release body is the reviewed notes file verbatim** — true of
+`rel-1.16.0` today, byte for byte.
+
+The publish job therefore needs the notes file, and receiving it through the artifact upload is
+simpler than a second checkout; the work breakdown assumes that.
+
+**The cost, and its mitigation.** The release page shows a `SHA256SUMS.cosign.bundle` with nothing
+on the page explaining what it is for; a consumer has to reach `README.env`. The mitigation is
+cheap and hand-written: each release's notes carry a short "Verifying these artifacts" section with
+the two commands and a pointer to `README.env`. Because the notes *are* the body, that puts the
+instructions on the release page while keeping them reviewed in a PR and out of workflow shell.
+See D7 and work-breakdown step 5; do not let that item slip to `README.env` alone.
+
+**Applies to the sibling repos too.** dp-service#221 and dp-desktop-app#24 face the identical
+choice against the identical `README.env` convention, and should land the same way. Note the
+`--certificate-identity-regexp` in each repo's `README.env` is **repo-specific** — three
+near-identical files needing three different identity patterns is an obvious copy-paste hazard, and
+a wrong pattern makes the verification vacuous rather than failing loudly.
 
 ## Target workflow shape
 
