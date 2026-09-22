@@ -11,7 +11,8 @@
   `.github/workflows/release.yml` is the reference implementation.
 - **Related**: [#133](https://github.com/osprey-dcs/dp-grpc/issues/133) — SHA-pinned actions,
   same customer-driven supply-chain thread.
-- **Status**: triaged and scoped 2026-09-18; not yet implemented.
+- **Status**: triaged and scoped 2026-09-18; revised 2026-09-22 after PR review; not yet
+  implemented.
 
 `release.yml` publishes a jar and a proto tarball with `sha256sum` files beside them. The
 checksums prove integrity but not provenance: they are written by the same job, with the same
@@ -79,8 +80,13 @@ before a real tag push. dp-python-lib already has the pattern worth copying: `wo
 builds, verifies, and signs, and the publish job is gated on
 `github.event_name == 'push' && startsWith(github.ref, 'refs/tags/rel-')`. That makes a rehearsal
 structurally incapable of publishing, rather than relying on the operator not to. It also means
-there is no path to cutting a release from an arbitrary ref. Note this repo's `release.yml` has no
-`workflow_dispatch` trigger at all today, so this is new.
+there is no path to *publishing* a release from an arbitrary ref. Note this repo's `release.yml`
+has no `workflow_dispatch` trigger at all today, so this is new.
+
+A rehearsal does still sign. `cosign sign-blob` against a branch ref produces a real signature and
+a real, permanent Rekor entry bound to that ref — the gate stops the publish, not the signing.
+That is what makes the step 3 verification test possible, and it is harmless here, but it is not
+a dry run in the sense of leaving no trace. See "Blast radius" on Rekor permanence.
 
 **D6 — Target the next release, not a re-cut.** The ticket suggested `rel-1.16.0`; that shipped
 unsigned on 2026-09-16. The reasoning behind the suggestion still applies and points at the next
@@ -93,27 +99,48 @@ re-cut 1.16.0. Whatever version ships next gets the first signed artifacts.
 for a repo whose consumers are known, but it must be called out in the release notes for the
 version that carries it, alongside the new verification instructions.
 
-**D8 — Keep the release-notes existence check, and keep it early.** `release.yml` already verifies
-`doc/release-notes/rel-X.Y.Z.md` exists before building, deliberately ahead of
-`action-gh-release`, which would otherwise fail on a missing `body_path` only after everything is
-built and uploaded. That check must survive the job split and stay in the build job. A rehearsal
-has no `rel-` tag and therefore no notes to look for, so it needs the same push-only guard
-dp-python-lib uses.
+**D8 — Keep the release-notes existence check, and move it ahead of the build.** `release.yml`
+already verifies `doc/release-notes/rel-X.Y.Z.md` exists, which spares the run a failure from
+`action-gh-release` on a missing `body_path` after everything is built and uploaded. But today
+that check sits *after* `mvn -B package` (`release.yml:55`, build at `:27`), so it only saves the
+upload, not the build. dp-python-lib runs the equivalent check before its build for exactly this
+reason. The rewrite should move it ahead of `mvn -B package` in the build job, which costs
+nothing and makes the rationale true. A rehearsal has no `rel-` tag and therefore no notes to
+look for, so it needs the same push-only guard dp-python-lib uses.
 
-**D9 — Do not adopt dp-python-lib's release-body assembly.** That repo concatenates its notes with
-verification instructions into a `RELEASE_BODY.md` in the build job, because its publish job never
-checks out the repo. This repo could do the same, but the verification instructions are equally
-well placed in the hand-written `doc/release-notes/rel-X.Y.Z.md` and in `README.env`, where they
-are reviewable and version-controlled rather than generated. Prefer passing `body_path` to the
-notes file as today. This does mean the publish job must either check out the repo or receive the
-notes file through the artifact upload; the latter is simpler and is what the work breakdown
-assumes.
+**D9 — Do not adopt dp-python-lib's release-body assembly, and accept what that costs.** That repo
+concatenates its notes with verification instructions into a `RELEASE_BODY.md` in the build job.
+The reason is not that its publish job skips the checkout — it is that `action-gh-release` treats
+`body_path` as taking precedence over `body` outright, a fallback rather than a companion, so
+setting both would silently drop the instructions. Concatenation is how it gets the hand-written
+notes *and* the verification instructions into one body.
+
+This repo keeps `body_path` pointed at the hand-written notes, because the verification
+instructions are better placed in `doc/release-notes/rel-X.Y.Z.md` and `README.env`, where they
+are reviewable and version-controlled rather than generated at release time. The publish job
+therefore needs the notes file, and receiving it through the artifact upload is simpler than a
+second checkout; the work breakdown assumes that.
+
+**The consequence, accepted deliberately:** the release page will carry the notes and four
+assets, one of them a `.cosign.bundle`, with no on-page instructions for verifying it. A consumer
+has to reach `README.env` to learn what the bundle is for. dp-python-lib made the opposite call.
+The mitigation is D7 — the release notes for the version that carries this must themselves
+include the verification commands, since the notes *are* the release body. Do not let that item
+slip to `README.env` alone.
 
 ## Target workflow shape
 
 Two jobs. Permissions are per-job and minimal; the OIDC token never coexists with release-write.
+Every `uses:` is SHA-pinned with a version comment, per the convention already in `release.yml`
+and `#133`; the `upload-artifact` / `download-artifact` pins below are the ones dp-python-lib
+already resolved.
 
 ```yaml
+# A publish must never be cancelled halfway through, so unlike CI this does not set
+# cancel-in-progress.
+concurrency:
+  group: release-${{ github.ref }}
+
 permissions:
   contents: read          # default for the workflow; jobs widen as needed
 
@@ -123,11 +150,15 @@ jobs:
       contents: read
       id-token: write     # Sigstore OIDC; the only job that needs it
     steps:
-      # checkout, setup-java, mvn -B package, extract version,
-      # prepare artifacts, package protos, verify artifacts exist,
-      # verify release notes exist (push only)
+      # checkout, setup-java, extract version,
+      # verify release notes exist (push only, BEFORE the build -- see D8),
+      # mvn -B package, prepare artifacts, package protos, verify artifacts exist
 
       - name: Generate SHA256SUMS
+        # working-directory matters: sha256sum writes the path it was given, so running
+        # from inside release/ produces bare filenames.  Consumers verify in a download
+        # directory that has no release/ subdirectory, and a `release/dp-grpc-...` entry
+        # would make `sha256sum -c` fail for them.  See "Checksum paths" below.
         working-directory: release
         run: |
           set -euo pipefail
@@ -145,7 +176,11 @@ jobs:
             --bundle SHA256SUMS.cosign.bundle \
             SHA256SUMS
 
-      # upload-artifact: the jar, the tarball, SHA256SUMS, the bundle, and the notes file
+      - name: Upload build outputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          # the jar, the tarball, SHA256SUMS, the bundle, and the notes file
+          retention-days: 7
 
   publish:
     needs: build-and-sign
@@ -153,9 +188,31 @@ jobs:
     permissions:
       contents: write     # release write; no signing token in scope
     steps:
-      # download-artifact, then action-gh-release with body_path pointing at the
-      # downloaded notes file
+      - name: Download build outputs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          # body_path points at the notes file that travelled through the upload (D9).
+          # fail_on_unmatched_files is not set in release.yml today: without it a glob that
+          # matches nothing publishes a release quietly missing an asset, which in a signing
+          # workflow could mean a release with no bundle and no failure.
+          fail_on_unmatched_files: true
 ```
+
+### Checksum paths
+
+Today's workflow runs `sha256sum release/dp-grpc-${VERSION}.jar`, so the published `.sha256`
+files contain `release/dp-grpc-<version>.jar` as the path. A consumer who downloads the jar and
+its checksum into one directory and runs `sha256sum -c` gets a failure unless they first
+recreate a `release/` subdirectory. This is a live defect in `rel-1.16.0`'s assets, not a
+hypothetical.
+
+Generating `SHA256SUMS` from inside `release/` fixes it, and the fix is the reason for
+`working-directory` rather than a stylistic choice. Work-breakdown step 1 says to carry the
+existing steps across unchanged; **this step is the exception** — do not port
+`sha256sum release/...` forward under the new filename.
 
 Published assets become:
 
@@ -178,6 +235,9 @@ cosign verify-blob \
   SHA256SUMS
 ```
 
+Both commands run in the directory holding the downloaded assets, with no subdirectories —
+which is what the bare filenames in `SHA256SUMS` require, and why they are generated that way.
+
 The `--certificate-identity-regexp` is anchored at the start and pinned to this repo, this
 workflow file, and a `rel-` tag ref. An unanchored or looser identity pattern would accept a
 signature from any workflow in any repo, which is the common way this verification is made
@@ -185,7 +245,7 @@ vacuous.
 
 ## Blast radius
 
-**Within this repo**, three files change:
+**Within this repo**, five files change:
 
 - `.github/workflows/release.yml` — the job split, the signing steps, the consolidated checksums,
   the `workflow_dispatch` rehearsal trigger.
@@ -193,11 +253,12 @@ vacuous.
   the two published files. Both statements become wrong. Needs the new asset list, the
   `SHA256SUMS` verification, the `cosign verify-blob` invocation, and a note that `cosign` is the
   tool to install.
-- `doc/release-notes/rel-<next>.md` — the asset rename and the new verification path.
-
-`README.md` does not mention checksums or verification and needs no change. `CLAUDE.md`'s
-"Releases" section points at `README.env` for download and verification instructions, which stays
-true; it is worth a sentence noting artifacts are signed.
+- `doc/release-notes/rel-<next>.md` — a new document: the asset rename, and the verification
+  commands in full, since this file *is* the release body (D9).
+- `README.md` — its `## Release Notes` table gets a row for that new document, as CLAUDE.md
+  requires of every release note. Nothing else in `README.md` mentions checksums or verification.
+- `CLAUDE.md` — its "Releases" section keeps pointing at `README.env`, which stays true, plus a
+  sentence noting artifacts are signed with keyless Sigstore.
 
 **Outside this repo**: nothing consumes the `.sha256` files programmatically that we control.
 dp-service builds dp-grpc from source at the matching tag and never downloads a release asset, so
@@ -209,33 +270,58 @@ repo, the workflow path, and the commit SHA to it permanently. All of that is al
 this repo, so there is nothing to leak here — but it is a property to be aware of, and it would
 matter if this pattern were copied to a private repo.
 
+This covers rehearsals as well as releases: a `workflow_dispatch` run signs for real, so each
+rehearsal leaves a permanent public entry naming the branch it ran against (D5). Harmless here,
+and unavoidable if the rehearsal is to test anything — but worth knowing before rehearsing
+repeatedly, or off a branch whose name you would rather not publish.
+
 ## Work breakdown
 
 1. **Rewrite `release.yml`** into the two-job shape above. Keep the existing build, version
    extraction, artifact preparation, and artifact-existence steps intact — only their job
-   placement changes. Keep the release-notes check in the build job with a push-only guard (D8).
-   Add the `workflow_dispatch` trigger and the publish gate (D5). Add `set -euo pipefail` to the
-   new multi-line run steps, matching the style the existing "Verify release artifacts exist"
-   step already uses.
+   placement changes, with two exceptions: the release-notes check moves ahead of `mvn -B package`
+   and gains a push-only guard (D8), and checksum generation moves inside `release/` to produce
+   bare paths (see "Checksum paths"). Add the `workflow_dispatch` trigger and the publish gate
+   (D5), the `concurrency` group, and `fail_on_unmatched_files: true`. SHA-pin
+   `upload-artifact` and `download-artifact` like every other action here.
+
+   Add `set -euo pipefail` to the multi-line `run` steps. Note this is a deliberate improvement,
+   not an existing convention being matched: today only "Prepare artifacts" sets anything
+   (`set -e`), and "Verify release artifacts exist" sets no flags at all. `set -euo pipefail`
+   throughout is dp-python-lib's convention and the one to adopt.
 
 2. **Pass the notes file through `upload-artifact`** so the publish job can use it as `body_path`
    without checking out the repo (D9).
 
 3. **Rehearse via `workflow_dispatch`** against `main` before any tag push. Confirm: the job
-   produces a `SHA256SUMS` listing both artifacts; `cosign sign-blob` succeeds and emits a bundle;
-   the publish job is skipped. Then verify the rehearsal's bundle locally with the
-   `cosign verify-blob` command above, substituting a `--certificate-identity-regexp` that matches
-   a branch ref rather than a tag ref — the rehearsal signs under `refs/heads/main`, so the
-   tag-anchored pattern will correctly refuse it, and confirming that refusal is itself worth
-   doing.
+   produces a `SHA256SUMS` listing both artifacts with bare filenames; `cosign sign-blob` succeeds
+   and emits a bundle; the publish job is skipped. Download the rehearsal's artifacts and check
+   `sha256sum -c SHA256SUMS` passes in a flat directory.
+
+   Then verify the bundle locally, twice. First with the branch-anchored identity, which should
+   pass — the rehearsal signs under `refs/heads/main`:
+
+   ```bash
+   cosign verify-blob \
+     --bundle SHA256SUMS.cosign.bundle \
+     --certificate-identity-regexp '^https://github.com/osprey-dcs/dp-grpc/\.github/workflows/release\.yml@refs/heads/main$' \
+     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+     SHA256SUMS
+   ```
+
+   Then again with the `refs/tags/rel-` pattern from "Target workflow shape", which **must fail**.
+   Confirming that refusal is the point: it proves the tag anchor in the published instructions is
+   load-bearing rather than decorative.
 
 4. **Update `README.env`** — new asset list, both verification commands, a pointer to
    [cosign installation](https://docs.sigstore.dev/cosign/system_config/installation/), and a
    sentence on what the signature proves (repo, workflow, ref, source commit) that the checksum
    does not.
 
-5. **Write the release-notes section** for the version that carries this, covering the asset
-   rename as a breaking change for scripted downloads (D7) and the new verification path.
+5. **Write the release notes** for the version that carries this, covering the asset rename as a
+   breaking change for scripted downloads (D7) and the verification commands in full — the notes
+   are the release body, so anything omitted here is absent from the release page (D9). Add the
+   row to `README.md`'s `## Release Notes` table, per CLAUDE.md.
 
 6. **Add a sentence to `CLAUDE.md`'s "Releases" section** noting that artifacts are signed with
    keyless Sigstore and that `README.env` carries the verification instructions.
@@ -261,3 +347,12 @@ matter if this pattern were copied to a private repo.
   dp-service's release workflow would close the loop, turning the signature from something a human
   may check into something the pipeline enforces. Only worth doing if dp-service ever starts
   consuming the published jar rather than building from source.
+
+- **Tag and version validation.** Out of scope for #137, but adjacent and worth its own ticket.
+  `release.yml` derives `VERSION` by stripping `rel-` from the tag with no validation, so a typo
+  (`rel-v1.17.0`, `rel-1.17`) yields a release named after the typo, and nothing cross-checks the
+  built jar's version against the tag. dp-python-lib validates both — an anchored regex on the tag
+  shape, then a string compare against the built artifact's version — on the reasoning that
+  mislabelled artifacts should not be published. Signing raises the stakes a little: a signature
+  binds an artifact to a commit, but says nothing about whether it is *named* correctly. Do not
+  fold this into #137; the rewrite is large enough already.
