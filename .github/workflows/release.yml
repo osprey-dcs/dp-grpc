@@ -4,18 +4,40 @@ on:
   push:
     tags:
       - 'rel-*'
+  # Rehearsal trigger.  A workflow_dispatch run builds, verifies, and signs, but the
+  # publish job below is gated on a rel-* tag push, so a rehearsal is structurally
+  # incapable of publishing rather than relying on the operator not to.  Note that a
+  # rehearsal does sign for real: it produces a permanent public Rekor entry naming the
+  # ref it ran against.
+  workflow_dispatch:
+
+# A publish must never be cancelled halfway through, so unlike CI this pins
+# cancel-in-progress off.  false is already the default; it is stated explicitly so the
+# intent survives a later edit rather than living only in this comment.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
-  release:
+  build-and-sign:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+      id-token: write   # Sigstore keyless OIDC; the only job that needs it
+
+    env:
+      # The single definition of "this run is a real release", deliberately the same
+      # expression that gates the publish job below, so the two can never disagree about
+      # what a release is.  Every step that behaves differently for a release keys off it.
+      IS_RELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/rel-') }}
 
     steps:
-      # Actions are pinned to commit SHAs rather than floating major tags: this job runs
-      # with `contents: write` and publishes release artifacts, so a compromised upstream
-      # tag here could replace what users download.  Dependabot (.github/dependabot.yml)
-      # keeps the pins current.
+      # Actions are pinned to commit SHAs rather than floating major tags: this workflow
+      # publishes release artifacts, so a compromised upstream tag could replace what users
+      # download.  Dependabot (.github/dependabot.yml) keeps the pins current.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
@@ -24,36 +46,34 @@ jobs:
           java-version: 21
           cache: maven
 
-      - name: Build
-        run: mvn -B package
-
+      # The discriminator throughout this job is the EVENT, not the ref type: only a
+      # rel-* tag push is a release, and that is exactly what gates the publish job below.
+      # Keying off GITHUB_REF_TYPE instead would misclassify a workflow_dispatch run
+      # against a tag -- a legitimate way to rehearse -- as a release.
+      #
+      # On a release the version comes from the tag.  A rehearsal has no rel- tag to
+      # strip, and falling back to GITHUB_REF_NAME would build dp-grpc-main.jar, so the
+      # rehearsal would exercise filenames no release ever uses.  Reading the POM instead
+      # means a rehearsal produces the same names a release does.
       - name: Extract version
-        run: echo "VERSION=${GITHUB_REF_NAME#rel-}" >> $GITHUB_ENV
-
-      - name: Prepare artifacts
         run: |
-          set -e
-          mkdir -p release
-          cp -r src/main/proto release/proto
+          set -euo pipefail
+          if [ "${IS_RELEASE}" = "true" ]; then
+            VERSION="${GITHUB_REF_NAME#rel-}"
+          else
+            VERSION=$(mvn -B -q -DforceStdout help:evaluate -Dexpression=project.version)
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "Release version: ${VERSION}"
 
-          JAR=$(ls target/*.jar | head -n 1)
-          cp "$JAR" release/dp-grpc-${VERSION}.jar
-
-      - name: Package proto files
-        run: |
-          cd release
-          tar czf dp-grpc-${VERSION}.tar.gz proto
-
-      - name: Verify release artifacts exist
-        run: |
-          test -f release/dp-grpc-${VERSION}.tar.gz
-          test -f release/dp-grpc-${VERSION}.jar
-
-      # Checked here rather than left to action-gh-release, which fails the job on a
-      # missing body_path only after the build and upload steps have run.  Every release
-      # from 1.16.0 on ships notes; see CLAUDE.md "Releases".
+      # Checked before the build rather than left to action-gh-release, which fails the job
+      # on a missing body_path only after everything has been built and uploaded.  Every
+      # release from 1.16.0 on ships notes; see CLAUDE.md "Releases".  Skipped on a
+      # rehearsal, which publishes nothing and so has no release body to look for.
       - name: Verify release notes exist
+        if: env.IS_RELEASE == 'true'
         run: |
+          set -euo pipefail
           NOTES="doc/release-notes/${GITHUB_REF_NAME}.md"
           if [ ! -f "$NOTES" ]; then
             echo "::error::Release notes not found at $NOTES."
@@ -62,22 +82,122 @@ jobs:
           fi
           echo "NOTES_PATH=$NOTES" >> $GITHUB_ENV
 
-      - name: Generate checksums
+      - name: Build
+        run: mvn -B package
+
+      - name: Prepare artifacts
         run: |
-          sha256sum release/dp-grpc-${VERSION}.jar \
-            > release/dp-grpc-${VERSION}.jar.sha256
-          sha256sum release/dp-grpc-${VERSION}.tar.gz \
-            > release/dp-grpc-${VERSION}.tar.gz.sha256
+          set -euo pipefail
+          mkdir -p release
+          cp -r src/main/proto release/proto
+
+          JAR=$(ls target/*.jar | head -n 1)
+          cp "$JAR" release/dp-grpc-${VERSION}.jar
+
+      - name: Package proto files
+        working-directory: release
+        run: |
+          set -euo pipefail
+          tar czf dp-grpc-${VERSION}.tar.gz proto
+
+      - name: Verify release artifacts exist
+        run: |
+          set -euo pipefail
+          test -f release/dp-grpc-${VERSION}.tar.gz
+          test -f release/dp-grpc-${VERSION}.jar
+
+      # working-directory matters here: sha256sum records the path it was given, so
+      # generating from inside release/ produces bare filenames.  Consumers verify in a
+      # download directory with no release/ subdirectory, and a `release/dp-grpc-...` entry
+      # would make `sha256sum -c` fail for them.
+      - name: Generate SHA256SUMS
+        working-directory: release
+        run: |
+          set -euo pipefail
+          sha256sum dp-grpc-${VERSION}.jar dp-grpc-${VERSION}.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # One signature over the consolidated checksum file covers every artifact it lists.
+      - name: Sign checksums
+        working-directory: release
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes \
+            --bundle SHA256SUMS.cosign.bundle \
+            SHA256SUMS
+
+      # The notes file travels with the artifacts so the publish job can use it as
+      # body_path without a second checkout.  On a rehearsal there is no notes file, so a
+      # placeholder is staged instead: the upload below treats a missing path as an error,
+      # and a rehearsal should fail on a real problem, not on the absence of something it
+      # was never going to publish.
+      #
+      # Gated on IS_RELEASE rather than GITHUB_REF_TYPE: NOTES_PATH is set only by the
+      # push-only step above, so a workflow_dispatch run against a tag would reference it
+      # unset and abort the rehearsal under `set -u` before anything is uploaded.
+      - name: Stage release notes
+        run: |
+          set -euo pipefail
+          if [ "${IS_RELEASE}" = "true" ]; then
+            cp "${NOTES_PATH}" release/RELEASE_NOTES.md
+          else
+            echo "Rehearsal run -- not a release; no notes staged." > release/RELEASE_NOTES.md
+          fi
+
+      - name: Upload build outputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-artifacts
+          path: |
+            release/dp-grpc-${{ env.VERSION }}.jar
+            release/dp-grpc-${{ env.VERSION }}.tar.gz
+            release/SHA256SUMS
+            release/SHA256SUMS.cosign.bundle
+            release/RELEASE_NOTES.md
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build-and-sign
+    # Only a rel-* tag push publishes.  A workflow_dispatch rehearsal stops after signing.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/rel-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # release write; no signing token in scope
+
+    steps:
+      - name: Extract version
+        run: |
+          set -euo pipefail
+          echo "VERSION=${GITHUB_REF_NAME#rel-}" >> $GITHUB_ENV
+
+      - name: Download build outputs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-artifacts
+          path: release
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: |
             release/dp-grpc-${{ env.VERSION }}.jar
-            release/dp-grpc-${{ env.VERSION }}.jar.sha256
             release/dp-grpc-${{ env.VERSION }}.tar.gz
-            release/dp-grpc-${{ env.VERSION }}.tar.gz.sha256
-          body_path: ${{ env.NOTES_PATH }}
+            release/SHA256SUMS
+            release/SHA256SUMS.cosign.bundle
+          # The hand-written notes are the release body verbatim; see plan D9.
+          body_path: release/RELEASE_NOTES.md
+          # Without this a glob matching nothing publishes a release quietly missing an
+          # asset -- here, potentially a release with no signature and no failure.
+          fail_on_unmatched_files: true
+          # Overwrites assets of the SAME name; it does not remove assets whose names are
+          # no longer produced.  Re-cutting a tag from before signing would therefore leave
+          # that release's dp-grpc-<version>.jar.sha256 files sitting beside the new
+          # SHA256SUMS -- unsigned, and recording the old broken `release/`-prefixed paths.
+          # Delete the stale .sha256 assets by hand before re-cutting any tag up to 1.16.0.
           overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
