@@ -1,29 +1,26 @@
-# dp-grpc 1.17.0 Release Notes
+# Release-note fragment: signed release artifacts (issue #137)
 
-Changes since rel-1.16.0.  This release contains **no proto or API changes** — the generated
-stubs are identical to 1.16.0's.  It changes how release artifacts are published and verified:
-the checksum files are consolidated into one `SHA256SUMS`, and that file is signed with keyless
-Sigstore.
+**This is not a release note.** It is the #137 portion of one, written and reviewed alongside the
+implementation so the content does not have to be reconstructed later.
 
-**The asset names change.** A scripted download of `dp-grpc-<version>.jar.sha256` will get a 404
-against this release.  See **Upgrading from 1.16.0** below.
+**How to use it.** When the release that first carries signed artifacts is cut, paste the
+"Signed release artifacts", "Verifying these artifacts", and "Checksum paths fixed" sections
+below into `doc/release-notes/rel-<version>.md`, and fold the upgrade items into that document's
+"Upgrading from <previous>" checklist. Then delete this file — it has no reason to outlive the
+release it feeds.
 
-## Contents
+**Why it lives here.** Plan step 5 calls for release notes for "the version that carries this",
+and that version is not yet known: `release.yml` resolves notes as
+`doc/release-notes/${GITHUB_REF_NAME}.md`, strictly from the tag, so a notes file written against
+a guessed version number is both a stranded file and a failed release-notes check. The signing
+content below is durable; a claim about what *else* a given release contains is not, and the
+release is weeks out with proto changes expected in between.
 
-- [Upgrading from 1.16.0](#upgrading-from-1160)
-- [Signed release artifacts (dp-grpc #137)](#signed-release-artifacts-dp-grpc-issue-137)
-- [Verifying these artifacts](#verifying-these-artifacts)
-- [Checksum paths fixed](#checksum-paths-fixed)
+**One thing to re-check before pasting:** the asset rename is described below as affecting
+consumers of `rel-1.16.0`. If any release ships between 1.16.0 and this one, update the
+"Releases before" line in `README.env` and the version references here to match.
 
-## Upgrading from 1.16.0
-
-No code changes are required; the stubs are unchanged.  Only artifact consumers are affected:
-
-1. **Update any scripted download of the `.sha256` files.** `dp-grpc-<version>.jar.sha256` and
-   `dp-grpc-<version>.tar.gz.sha256` no longer exist.  One `SHA256SUMS` covers both artifacts.
-2. **Drop any workaround for the checksum path.** If a script recreated a `release/` subdirectory
-   to make `sha256sum -c` succeed, remove it — see [Checksum paths fixed](#checksum-paths-fixed).
-3. **Optionally, start verifying the signature.** It is a new capability, not a new requirement.
+---
 
 ## Signed release artifacts (dp-grpc Issue #137)
 
@@ -41,7 +38,8 @@ signing token but cannot write to the release; the job that publishes can write 
 holds no signing token.  Publishing is gated on a `rel-*` tag push, so the `workflow_dispatch`
 rehearsal trigger added alongside it is structurally incapable of publishing.
 
-Published assets are now:
+**The asset names change.**  A scripted download of `dp-grpc-<version>.jar.sha256` will get a 404
+against this release.  Published assets are now:
 
 ```
 dp-grpc-<version>.jar
@@ -91,3 +89,15 @@ sha256sum: release/dp-grpc-1.16.0.jar: No such file or directory
 
 unless they first recreated a `release/` subdirectory.  `SHA256SUMS` is generated from inside the
 artifact directory and records bare filenames, so it verifies where the files actually land.
+
+---
+
+## Upgrade items
+
+Fold these into the carrying release's "Upgrading from <previous>" checklist:
+
+1. **Update any scripted download of the `.sha256` files.** `dp-grpc-<version>.jar.sha256` and
+   `dp-grpc-<version>.tar.gz.sha256` no longer exist.  One `SHA256SUMS` covers both artifacts.
+2. **Drop any workaround for the checksum path.** If a script recreated a `release/` subdirectory
+   to make `sha256sum -c` succeed, remove it.
+3. **Optionally, start verifying the signature.** It is a new capability, not a new requirement.

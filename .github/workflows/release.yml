@@ -67,6 +67,15 @@ jobs:
             echo "::error::Add the notes for ${VERSION} and re-run, or retag once they are on the tagged commit."
             exit 1
           fi
+
+          # The first signed release must document the asset rename; the reviewed text is
+          # kept in plan/tickets/137/.  Warn rather than fail: this is a reminder for one
+          # specific release, and the fragment is deleted once it has been folded in.
+          FRAGMENT="plan/tickets/137/release-note-fragment.md"
+          if [ -f "$FRAGMENT" ] && ! grep -q "SHA256SUMS" "$NOTES"; then
+            echo "::warning::$FRAGMENT still exists and $NOTES does not mention SHA256SUMS."
+            echo "::warning::If this is the first signed release, fold the fragment into the notes and delete it."
+          fi
           echo "NOTES_PATH=$NOTES" >> $GITHUB_ENV
 
       - name: Build
