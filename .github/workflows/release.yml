@@ -9,6 +9,13 @@ on:
   # incapable of publishing rather than relying on the operator not to.  Note that a
   # rehearsal does sign for real: it produces a permanent public Rekor entry naming the
   # ref it ran against.
+  #
+  # Dispatch works against a branch or a tag, but GitHub validates the trigger against
+  # the workflow file AS IT EXISTS AT THE TARGET REF -- the run then executes the default
+  # branch's copy.  So any tag from before this trigger was added cannot be rehearsed
+  # against at all (HTTP 422, "Workflow does not have 'workflow_dispatch' trigger"); use
+  # a fresh throwaway tag instead, and never name it rel-* or pushing it starts a real
+  # release.
   workflow_dispatch:
 
 # A publish must never be cancelled halfway through, so unlike CI this pins

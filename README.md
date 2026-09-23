@@ -170,6 +170,11 @@ release, covering what changed since the previous one and what upgrading require
 |---|---|
 | 1.16.0 | [rel-1.16.0](doc/release-notes/rel-1.16.0.md) — Sample Status API, modernized DataSet and Annotation APIs, `DataValue.ValueStatus` removed.  **Breaking.** |
 
+Changes merged since the last release are drafted in
+[`doc/release-notes/NEXT.md`](doc/release-notes/NEXT.md), which is renamed to `rel-<version>.md`
+when that release is cut. It is a working draft: it describes what has landed so far, not the
+final contents of any release.
+
 Releases before 1.16.0 were documented on the
 [GitHub release](https://github.com/osprey-dcs/dp-grpc/releases) itself.  The `rel-*` tags remain
 the authority on what any past release contained.

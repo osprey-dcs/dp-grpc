@@ -325,6 +325,19 @@ often spans several PRs, and a breaking release leads with an "Upgrading from <p
 checklist that calls out silent behavior changes separately from compile errors. Add each new
 document to the table in the `## Release Notes` section of `README.md`.
 
+**Notes accumulate in `doc/release-notes/NEXT.md` during a cycle.** A PR that lands a
+user-visible change adds its own ticket-organized section there, so the content is written while
+it is fresh and gets reviewed in the PR that causes it. At release time `NEXT.md` is renamed to
+`rel-<version>.md` and finished: the summary, the "Upgrading from <previous>" checklist, and any
+breaking-release framing are written then, because only then is it known what the release
+actually contains. `NEXT.md` carries its own "Cutting the release" checklist.
+
+**Never name a version before the tag exists.** `release.yml` resolves the notes path strictly
+from `GITHUB_REF_NAME`, so a file committed as `rel-<guess>.md` is both stranded and a failed
+release-notes check on whatever tag does ship. For the same reason, a section in `NEXT.md` must
+not assert what *else* the release contains — a sibling ticket merging later falsifies it
+silently, and nobody cutting the release re-reads a notes file that already looks finished.
+
 `release.yml` publishes `doc/release-notes/rel-<version>.md` as the GitHub release body via
 `body_path`, and fails the release job early if the file is not present on the tagged commit.
 Write the notes and merge them **before** pushing the `rel-*` tag.
