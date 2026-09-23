@@ -306,7 +306,16 @@ Generated Java sources appear in `target/generated-sources/protobuf/`.
 
 ## Releases
 
-Tagged as `rel-<version>`. Release artifacts (JAR + SHA-256 checksum) are attached to GitHub releases. See `README.env` for download and verification instructions.
+Tagged as `rel-<version>`. Release artifacts (JAR, proto tarball, and a consolidated
+`SHA256SUMS`) are attached to GitHub releases. Starting with 1.17.0, `SHA256SUMS` is signed with
+keyless Sigstore (`cosign sign-blob`), binding the artifacts to the repo, workflow, tag, and
+source commit; the signature is published as `SHA256SUMS.cosign.bundle`. See `README.env` for
+download and verification instructions, including the `cosign verify-blob` invocation.
+
+`release.yml` splits building/signing from publishing so the OIDC signing token never shares a job
+with `contents: write`. Publishing is gated on a `rel-*` tag push, which makes the
+`workflow_dispatch` rehearsal trigger incapable of publishing. Note that a rehearsal still signs
+for real and leaves a permanent public Rekor entry naming the ref it ran against.
 
 Release notes are version-controlled under `doc/release-notes/`, one document per release
 (`rel-<version>.md`), starting with 1.16.0; earlier releases were documented on the GitHub

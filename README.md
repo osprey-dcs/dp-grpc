@@ -168,6 +168,7 @@ release, covering what changed since the previous one and what upgrading require
 
 | Release | Notes |
 |---|---|
+| 1.17.0 | [rel-1.17.0](doc/release-notes/rel-1.17.0.md) — release artifacts signed with keyless Sigstore; `.sha256` files consolidated into `SHA256SUMS`.  No API changes. |
 | 1.16.0 | [rel-1.16.0](doc/release-notes/rel-1.16.0.md) — Sample Status API, modernized DataSet and Annotation APIs, `DataValue.ValueStatus` removed.  **Breaking.** |
 
 Releases before 1.16.0 were documented on the
