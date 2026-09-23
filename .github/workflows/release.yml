@@ -11,10 +11,12 @@ on:
   # ref it ran against.
   workflow_dispatch:
 
-# A publish must never be cancelled halfway through, so unlike CI this deliberately does
-# not set cancel-in-progress.
+# A publish must never be cancelled halfway through, so unlike CI this pins
+# cancel-in-progress off.  false is already the default; it is stated explicitly so the
+# intent survives a later edit rather than living only in this comment.
 concurrency:
   group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -25,6 +27,12 @@ jobs:
     permissions:
       contents: read
       id-token: write   # Sigstore keyless OIDC; the only job that needs it
+
+    env:
+      # The single definition of "this run is a real release", deliberately the same
+      # expression that gates the publish job below, so the two can never disagree about
+      # what a release is.  Every step that behaves differently for a release keys off it.
+      IS_RELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/rel-') }}
 
     steps:
       # Actions are pinned to commit SHAs rather than floating major tags: this workflow
@@ -38,14 +46,19 @@ jobs:
           java-version: 21
           cache: maven
 
-      # On a tag push the version comes from the tag.  On a workflow_dispatch rehearsal
-      # there is no rel- tag to strip, and falling back to GITHUB_REF_NAME would build
-      # dp-grpc-main.jar -- so the rehearsal would exercise filenames no release ever uses.
-      # Reading the POM instead means a rehearsal produces the same names a release does.
+      # The discriminator throughout this job is the EVENT, not the ref type: only a
+      # rel-* tag push is a release, and that is exactly what gates the publish job below.
+      # Keying off GITHUB_REF_TYPE instead would misclassify a workflow_dispatch run
+      # against a tag -- a legitimate way to rehearse -- as a release.
+      #
+      # On a release the version comes from the tag.  A rehearsal has no rel- tag to
+      # strip, and falling back to GITHUB_REF_NAME would build dp-grpc-main.jar, so the
+      # rehearsal would exercise filenames no release ever uses.  Reading the POM instead
+      # means a rehearsal produces the same names a release does.
       - name: Extract version
         run: |
           set -euo pipefail
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          if [ "${IS_RELEASE}" = "true" ]; then
             VERSION="${GITHUB_REF_NAME#rel-}"
           else
             VERSION=$(mvn -B -q -DforceStdout help:evaluate -Dexpression=project.version)
@@ -56,9 +69,9 @@ jobs:
       # Checked before the build rather than left to action-gh-release, which fails the job
       # on a missing body_path only after everything has been built and uploaded.  Every
       # release from 1.16.0 on ships notes; see CLAUDE.md "Releases".  Skipped on a
-      # rehearsal, which has no rel- tag and therefore no notes to look for.
+      # rehearsal, which publishes nothing and so has no release body to look for.
       - name: Verify release notes exist
-        if: github.event_name == 'push'
+        if: env.IS_RELEASE == 'true'
         run: |
           set -euo pipefail
           NOTES="doc/release-notes/${GITHUB_REF_NAME}.md"
@@ -66,15 +79,6 @@ jobs:
             echo "::error::Release notes not found at $NOTES."
             echo "::error::Add the notes for ${VERSION} and re-run, or retag once they are on the tagged commit."
             exit 1
-          fi
-
-          # The first signed release must document the asset rename; the reviewed text is
-          # kept in plan/tickets/137/.  Warn rather than fail: this is a reminder for one
-          # specific release, and the fragment is deleted once it has been folded in.
-          FRAGMENT="plan/tickets/137/release-note-fragment.md"
-          if [ -f "$FRAGMENT" ] && ! grep -q "SHA256SUMS" "$NOTES"; then
-            echo "::warning::$FRAGMENT still exists and $NOTES does not mention SHA256SUMS."
-            echo "::warning::If this is the first signed release, fold the fragment into the notes and delete it."
           fi
           echo "NOTES_PATH=$NOTES" >> $GITHUB_ENV
 
@@ -130,10 +134,14 @@ jobs:
       # placeholder is staged instead: the upload below treats a missing path as an error,
       # and a rehearsal should fail on a real problem, not on the absence of something it
       # was never going to publish.
+      #
+      # Gated on IS_RELEASE rather than GITHUB_REF_TYPE: NOTES_PATH is set only by the
+      # push-only step above, so a workflow_dispatch run against a tag would reference it
+      # unset and abort the rehearsal under `set -u` before anything is uploaded.
       - name: Stage release notes
         run: |
           set -euo pipefail
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          if [ "${IS_RELEASE}" = "true" ]; then
             cp "${NOTES_PATH}" release/RELEASE_NOTES.md
           else
             echo "Rehearsal run -- not a release; no notes staged." > release/RELEASE_NOTES.md
@@ -185,6 +193,11 @@ jobs:
           # Without this a glob matching nothing publishes a release quietly missing an
           # asset -- here, potentially a release with no signature and no failure.
           fail_on_unmatched_files: true
+          # Overwrites assets of the SAME name; it does not remove assets whose names are
+          # no longer produced.  Re-cutting a tag from before signing would therefore leave
+          # that release's dp-grpc-<version>.jar.sha256 files sitting beside the new
+          # SHA256SUMS -- unsigned, and recording the old broken `release/`-prefixed paths.
+          # Delete the stale .sha256 assets by hand before re-cutting any tag up to 1.16.0.
           overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

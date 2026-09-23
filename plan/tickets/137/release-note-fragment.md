@@ -16,9 +16,12 @@ a guessed version number is both a stranded file and a failed release-notes chec
 content below is durable; a claim about what *else* a given release contains is not, and the
 release is weeks out with proto changes expected in between.
 
-**One thing to re-check before pasting:** the asset rename is described below as affecting
-consumers of `rel-1.16.0`. If any release ships between 1.16.0 and this one, update the
-"Releases before" line in `README.env` and the version references here to match.
+**Nothing here needs re-versioning before pasting.** The text below is deliberately written
+without a concrete version number: it names the previous release only as "previous releases" and
+shows artifact names as `dp-grpc-<version>`. It stays correct however many releases ship between
+1.16.0 and the one that carries signing. `README.env` and `CLAUDE.md` are phrased the same way,
+by what a release *contains* rather than by a version boundary, so they do not need updating
+either.
 
 ---
 
@@ -56,6 +59,10 @@ Download the assets into a single directory with no subdirectories, then:
 sha256sum -c SHA256SUMS
 ```
 
+`SHA256SUMS` covers every published artifact, so that fails if you downloaded only some of them.
+To check just the files you have, use `sha256sum --ignore-missing -c SHA256SUMS` — and confirm the
+file you care about is listed `OK`, since `--ignore-missing` also exits 0 when it checked nothing.
+
 To verify the signature, install [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
 and run:
 
@@ -84,7 +91,7 @@ The `.sha256` files published through 1.16.0 recorded the artifact path as
 A consumer who downloaded the jar and its checksum into one directory and ran `sha256sum -c` got:
 
 ```
-sha256sum: release/dp-grpc-1.16.0.jar: No such file or directory
+sha256sum: release/dp-grpc-<version>.jar: No such file or directory
 ```
 
 unless they first recreated a `release/` subdirectory.  `SHA256SUMS` is generated from inside the
