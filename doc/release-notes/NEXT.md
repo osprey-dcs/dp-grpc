@@ -6,9 +6,13 @@ Sections accumulate here as tickets land, so the content is written while it is 
 reviewed in the PR that causes it. At release time this file is renamed to
 `doc/release-notes/rel-<version>.md` and finished — see **Cutting the release** at the bottom.
 
-**The version is deliberately not named anywhere in this file.** `release.yml` resolves the notes
-path strictly from the tag (`doc/release-notes/${GITHUB_REF_NAME}.md`), so a file committed under
-a guessed version is both stranded and a failed release-notes check on the tag that does ship.
+**The version of the upcoming release is deliberately not named anywhere in this file**, in its
+filename or in its prose.  `release.yml` resolves the notes path strictly from the tag
+(`doc/release-notes/${GITHUB_REF_NAME}.md`), so a file committed under a guessed version is both
+stranded and a failed release-notes check on the tag that does ship.  Past versions are named
+freely where they are the point — "published through 1.16.0" is a durable fact about what shipped,
+not a guess about what is about to.
+
 Nothing here should assert what *else* the release contains, either: that is knowable only once
 the release is cut, and a stale claim in a file that already looks finished is not something the
 person cutting the release has any reason to re-read.
@@ -55,10 +59,15 @@ Download the assets into a single directory with no subdirectories, then:
 sha256sum -c SHA256SUMS
 ```
 
-`SHA256SUMS` covers every published artifact, so that fails if you downloaded only some of them —
-most consumers want just the JAR.  To check only the files you have, use
+`SHA256SUMS` lists the two downloadable artifacts — `dp-grpc-<version>.jar` and
+`dp-grpc-<version>.tar.gz` — so that fails if you downloaded only one of them, and most consumers
+want just the JAR.  To check only the files you have, use
 `sha256sum --ignore-missing -c SHA256SUMS`, and confirm the file you care about is listed `OK`,
 since `--ignore-missing` also exits 0 when it checked nothing at all.
+
+`SHA256SUMS` does not list itself or `SHA256SUMS.cosign.bundle`, so `sha256sum -c` says nothing
+about either.  What protects them is the signature: `cosign verify-blob` below checks the bundle
+against `SHA256SUMS`, and the checksums in turn cover the artifacts.
 
 To verify the signature, install [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
 and run:
@@ -134,9 +143,14 @@ When the version is known and the release is being cut:
    folding in the per-ticket upgrade items above. Call out silent behavior changes separately from
    compile errors, per CLAUDE.md — a change that alters results without raising an error is the
    one a reader most needs up front.
-4. **Delete this "Cutting the release" section** and update Contents.
-5. **Add the row to `README.md`'s `## Release Notes` table.**
-6. **Decide whether the release is breaking** and say so in the opening if it is. Note that #137
+4. **Repoint `blob/main/...` links to `blob/rel-<version>/...`.** This file is published as the
+   release body via `body_path`, and relative links do not survive that lift — they resolve against
+   the repo root, not `doc/release-notes/`, and 404.  Links here are already absolute for that
+   reason, but one pinned to `main` drifts as the repo moves on; pinned to the tag it keeps
+   describing the content this release actually shipped.
+5. **Delete this "Cutting the release" section** and update Contents.
+6. **Add the row to `README.md`'s `## Release Notes` table.**
+7. **Decide whether the release is breaking** and say so in the opening if it is. Note that #137
    renames published release assets: that breaks scripted downloads even in a release with no API
    change at all.
-7. **Start a fresh `NEXT.md`** for the following cycle.
+8. **Start a fresh `NEXT.md`** for the following cycle.
