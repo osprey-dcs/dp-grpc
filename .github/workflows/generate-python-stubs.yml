@@ -57,9 +57,13 @@ jobs:
           python-version: "3.11"
 
       - name: Install Python dependencies
+        # Hash-locked (issue #158): mypy-protobuf runs as a protoc plugin in a job that later
+        # holds DP_BOT_TOKEN, so the generators get the same standard as the SHA-pinned
+        # actions.  The pins also fix the gencode versions stamped into the stubs, which
+        # dp-python-lib's runtime minimums track; see tools/python-stubs-requirements.in
+        # before changing them.
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install grpcio grpcio-tools protobuf
+          python -m pip install --require-hashes -r tools/python-stubs-requirements.txt
 
       # -----------------------------
       # Generate Python stubs
@@ -73,17 +77,61 @@ jobs:
             -I src/main/proto \
             --python_out=out/python \
             --grpc_python_out=out/python \
+            --mypy_out=out/python \
+            --mypy_grpc_out=out/python \
             src/main/proto/*.proto
-      
-          # Fix absolute imports in all generated Python files
-          find out/python -name "*_pb2*.py" -exec \
+
+          # Fix absolute imports in all generated Python files, stubs included.  An unfixed
+          # import in a .pyi fails nothing at runtime; the type checker just loses the types.
+          find out/python \( -name "*_pb2*.py" -o -name "*_pb2*.pyi" \) -exec \
             sed -i 's/^import \(.*_pb2\) as/from . import \1 as/' {} \;
+
+      # Fail closed on a silent loss of type information, before anything reaches
+      # dp-python-lib.  The sed above only rewrites one import shape; a generator that emits
+      # another (e.g. `from common_pb2 import ...`) would otherwise pass unnoticed.  Relative
+      # imports and dotted well-known-type imports (`from google.protobuf import ...`) cannot
+      # match the pattern.
+      - name: Check generated imports and type stubs
+        run: |
+          set -euo pipefail
+          FAILED=0
+
+          if grep -rnE '^(import|from) [A-Za-z0-9_]+_pb2\b' out/python; then
+            echo "::error::Absolute import of a generated module survived the fixup (listed above)"
+            FAILED=1
+          fi
+
+          shopt -s nullglob
+          PY_FILES=(out/python/*.py)
+          if [ ${#PY_FILES[@]} -eq 0 ]; then
+            echo "::error::No .py files were generated"
+            FAILED=1
+          else
+            for f in "${PY_FILES[@]}"; do
+              if [ ! -f "${f}i" ]; then
+                echo "::error::No type stub for $f (expected ${f}i)"
+                FAILED=1
+              fi
+            done
+          fi
+
+          exit $FAILED
 
       - name: Debug generated Python output
         run: |
           echo "=== Generated files ==="
           ls -l out/python || true
           find out/python -type f || true
+
+      # Kept on every run, dry or real.  On a dry run it lets dp-python-lib check its code
+      # against the exact stubs a release would deliver before any sync PR exists; on a real
+      # run it is the audit record of what was synced.
+      - name: Upload generated Python stubs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-stubs
+          path: out/python
+          if-no-files-found: error
 
       # -----------------------------
       # Determine release vs dev mode
@@ -197,14 +245,15 @@ jobs:
           {
             echo "### Dry run — nothing was pushed"
             echo
-            echo "Generated $(find out/python -name '*.py' | wc -l | tr -d ' ') Python files"
-            echo "that a real run would sync into \`${TARGET_REPO}\` on branch"
-            echo "\`${TARGET_BRANCH}\`."
+            echo "Generated $(find out/python -name '*.py' | wc -l | tr -d ' ') Python modules and"
+            echo "$(find out/python -name '*.pyi' | wc -l | tr -d ' ') type stubs that a real run would sync into"
+            echo "\`${TARGET_REPO}\` on branch \`${TARGET_BRANCH}\`."
             echo
+            echo "The same files are attached to this run as the \`python-stubs\` artifact."
             echo "Re-dispatch with \`dry_run: false\` to push a branch and open a PR."
             echo
             echo '```'
-            find out/python -type f -name '*.py' | sort
+            find out/python -type f \( -name '*.py' -o -name '*.pyi' \) | sort
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

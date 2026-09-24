@@ -17,7 +17,7 @@ src/main/proto/       # All proto files (the primary artifact of this repo)
 doc/cookbook/         # Task-oriented worked examples (see "Documentation" below)
 doc/                  # Images and proposed/design proto files
 plan/                 # Official plan documents, one dir per issue (see "Planning Artifacts")
-tools/                # Dev scripts (cookbook snippet checker)
+tools/                # Dev scripts (cookbook snippet checker) and the hash-locked Python stub generator pins
 pom.xml               # Maven build; runs protoc via protobuf-maven-plugin
 ```
 
