@@ -1,0 +1,26 @@
+# Python stub generators for .github/workflows/generate-python-stubs.yml (issue #158).
+#
+# Direct pins only.  The workflow installs from the hash-locked
+# python-stubs-requirements.txt compiled from this file, never from this file itself, so every
+# transitive package is locked to an exact version and hash.  Regenerate the .txt after any
+# change here, from the repo root:
+#
+#   pip-compile --generate-hashes --allow-unsafe --strip-extras \
+#       tools/python-stubs-requirements.in
+#
+# This is the authoritative command.  The .txt header records it with an added `--no-index`:
+# pip-tools (7.6.1, used for the current lock) writes that into the header itself, even when the
+# flag was not passed.  Do not pass `--no-index`, which would make pip-compile skip PyPI entirely.
+#
+# --allow-unsafe is required: grpcio-tools depends on setuptools, and without the flag
+# pip-compile omits it from the lock, after which `pip install --require-hashes` refuses to run.
+#
+# grpcio-tools stamps GRPC_GENERATED_VERSION and the protobuf gencode version into the generated
+# .py files, and dp-python-lib keeps its runtime minimums (grpcio, protobuf) in step with those
+# stamps by hand.  Bumping it is therefore a coordinated change: land a matching dp-python-lib
+# change first, including its [codegen] extra, which names this file as the authority.
+#
+# Deliberately not Dependabot-managed, for the same reason: a generator bump moves
+# dp-python-lib's runtime minimums, so it is a decision rather than routine maintenance.
+grpcio-tools==1.84.0
+mypy-protobuf==5.1.0

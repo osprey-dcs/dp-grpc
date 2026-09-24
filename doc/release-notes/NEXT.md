@@ -21,6 +21,7 @@ person cutting the release has any reason to re-read.
 
 - [Signed release artifacts (dp-grpc #137)](#signed-release-artifacts-dp-grpc-issue-137)
 - [Stub sync no longer rewrites dp-python-lib's pyproject.toml (dp-grpc #153)](#stub-sync-no-longer-rewrites-dp-python-libs-pyprojecttoml-dp-grpc-issue-153)
+- [Typed Python stubs (dp-grpc #158)](#typed-python-stubs-dp-grpc-issue-158)
 - [Cutting the release](#cutting-the-release)
 
 ---
@@ -130,27 +131,73 @@ commit's `git add`, leaving the sync to touch only the generated stubs it owns.
 
 ---
 
+## Typed Python stubs (dp-grpc Issue #158)
+
+No effect on the protos, the Java artifacts, or the Python runtime. This changes what the stub
+workflow delivers to [dp-python-lib](https://github.com/osprey-dcs/dp-python-lib).
+
+The generated `*_pb2.py` and `*_pb2_grpc.py` modules carry no type information, so a type checker
+could not see a single message class. `generate-python-stubs.yml` now also emits
+[mypy-protobuf](https://github.com/nipunn1313/mypy-protobuf) `.pyi` stubs beside every module.
+They type message constructors, fields, and enums and, with
+[`types-grpcio`](https://pypi.org/project/types-grpcio/) installed, the request and response of
+every RPC on the service stubs. The generator change leaves the `.py` output unchanged: those
+modules differ from the previous sync only where the protos changed.
+
+Two further changes to the workflow:
+
+- **The generators are pinned and hash-locked**, in
+  [`tools/python-stubs-requirements.txt`](https://github.com/osprey-dcs/dp-grpc/blob/main/tools/python-stubs-requirements.txt),
+  compiled from `grpcio-tools==1.84.0` and `mypy-protobuf==5.1.0`. They were installed unversioned
+  before, so a sync could silently raise the gencode versions stamped into the stubs, and with
+  them dp-python-lib's runtime minimums, whenever a new `grpcio-tools` was published.
+- **The run fails closed** if any generated file keeps an absolute import of a generated module
+  after the import fixup, or if any module has no matching stub. Every run, dry or real, attaches
+  the generated tree as the `python-stubs` artifact.
+
+### Upgrade items
+
+1. **If you generate stubs yourself** following
+   [`python-stubs.md`](https://github.com/osprey-dcs/dp-grpc/blob/main/doc/cookbook/python-stubs.md),
+   install from the requirements file and add `--mypy_out` / `--mypy_grpc_out`. Widen the import
+   fixup to `*.pyi`: an unfixed import in a stub does not fail, it silently turns the types it
+   carries into `Any`.
+2. **To type-check stub calls**, install `types-grpcio`. Without it, mypy reports
+   `overload-cannot-match` inside the generated `*_pb2_grpc.pyi`.
+
+---
+
 ## Cutting the release
 
 When the version is known and the release is being cut:
 
-1. **`git mv doc/release-notes/NEXT.md doc/release-notes/rel-<version>.md`.** The filename must
+1. **Check dp-python-lib against the typed stubs (#158) before pushing the tag.** The first sync
+   that carries `.pyi` files type-checks dp-python-lib's code and cookbook snippets against them,
+   even with its suppression of the generated package in place. Confirm its preparation PR,
+   [osprey-dcs/dp-python-lib#60](https://github.com/osprey-dcs/dp-python-lib/pull/60), is still
+   merged. Then dispatch `generate-python-stubs.yml` from `main` with `dry_run: true`, drop the
+   `python-stubs` artifact into a dp-python-lib checkout at `src/dp_python_lib/grpc/`, and confirm
+   `mypy src/` and its cookbook snippet checker both pass. If they do not, fix dp-python-lib
+   first: a red sync PR is the alternative. See
+   [`plan/tickets/158/plan.md`](https://github.com/osprey-dcs/dp-grpc/blob/main/plan/tickets/158/plan.md),
+   "Cross-repo sequencing".
+2. **`git mv doc/release-notes/NEXT.md doc/release-notes/rel-<version>.md`.** The filename must
    match the tag exactly; `release.yml` fails the run before the build if it does not.
-2. **Retitle** the H1 to `# dp-grpc <version> Release Notes` and replace this file's preamble with
+3. **Retitle** the H1 to `# dp-grpc <version> Release Notes` and replace this file's preamble with
    a "Changes since rel-<previous>" summary — written now, when the full contents of the release
    are actually known.
-3. **Add the "Upgrading from &lt;previous&gt;" section** as the first section after Contents,
+4. **Add the "Upgrading from &lt;previous&gt;" section** as the first section after Contents,
    folding in the per-ticket upgrade items above. Call out silent behavior changes separately from
    compile errors, per CLAUDE.md — a change that alters results without raising an error is the
    one a reader most needs up front.
-4. **Repoint `blob/main/...` links to `blob/rel-<version>/...`.** This file is published as the
+5. **Repoint `blob/main/...` links to `blob/rel-<version>/...`.** This file is published as the
    release body via `body_path`, and relative links do not survive that lift — they resolve against
    the repo root, not `doc/release-notes/`, and 404.  Links here are already absolute for that
    reason, but one pinned to `main` drifts as the repo moves on; pinned to the tag it keeps
    describing the content this release actually shipped.
-5. **Delete this "Cutting the release" section** and update Contents.
-6. **Add the row to `README.md`'s `## Release Notes` table.**
-7. **Decide whether the release is breaking** and say so in the opening if it is. Note that #137
+6. **Delete this "Cutting the release" section** and update Contents.
+7. **Add the row to `README.md`'s `## Release Notes` table.**
+8. **Decide whether the release is breaking** and say so in the opening if it is. Note that #137
    renames published release assets: that breaks scripted downloads even in a release with no API
    change at all.
-8. **Start a fresh `NEXT.md`** for the following cycle.
+9. **Start a fresh `NEXT.md`** for the following cycle.
