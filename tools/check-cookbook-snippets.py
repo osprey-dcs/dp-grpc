@@ -11,10 +11,14 @@ What the results mean:
   unresolved TYPE      a real bug -- the class does not exist, or is nested and the
                        recipe gave no import for it
   unresolved VARIABLE  expected -- the snippet is a fragment
+  unresolved MEMBER    a real bug -- a method or field on a generated class that does
+                       not exist, e.g. a misspelled setter
   syntax error         a real bug -- the snippet is not valid Java
 
-Exits non-zero if any unresolved type or syntax error is found, so this is usable
-as a pre-commit or CI check.
+Exits non-zero if any of the real bugs above is found, if no snippets were extracted,
+or if javac fails in a way this script does not recognize. CI runs it on every pull
+request and push to main (.github/workflows/ci.yml); run it locally before pushing
+for a faster loop.
 
 Usage:
     mvn compile                                  # generate and compile the stubs first
@@ -147,6 +151,11 @@ def main():
         manifest = extract(out_dir)
         docs = len({e['doc'] for e in manifest})
         print(f"extracted {len(manifest)} java blocks from {docs} docs")
+        # Zero blocks means the extraction broke (a moved directory, a changed fence
+        # style), not that the cookbook is clean. Passing here would disarm the gate.
+        if not manifest:
+            print(f"error: no ```java blocks found in {DOCS}")
+            return 1
 
         classes_out = out_dir / '_classes'
         classes_out.mkdir(exist_ok=True)
@@ -158,53 +167,68 @@ def main():
 
         by_class = {e['class']: e for e in manifest}
         lines = r.stderr.splitlines()
-        real, partial = [], 0
+        real, partial, parsed = [], 0, 0
         for i, line in enumerate(lines):
             m = re.match(r'.*/(Snip\d+)\.java:(\d+): error: (.*)', line)
             if not m:
                 continue
+            parsed += 1
             cls, msg = m.group(1), m.group(3)
             # javac follows each error with the offending source line, a caret,
-            # then "symbol:" / "location:". Scan ahead to the next error for the
-            # symbol kind rather than assuming a fixed offset.
-            kind = None
+            # then "symbol:" / "location:". Scan ahead to the next error for both
+            # rather than assuming a fixed offset.
+            kind = name = location = None
             for f in lines[i + 1:]:
                 if re.match(r'.*/Snip\d+\.java:\d+: error: ', f):
                     break
                 if 'symbol:' in f:
-                    kind = f.split('symbol:')[1].split()[0]
-                    break
-            # javac reports an unknown *type* used as an expression receiver as
-            # "symbol: variable Foo" -- indistinguishable by kind from a genuinely
-            # undeclared local. Suppress only names that look like locals
-            # (lowerCamelCase); anything UpperCamelCase is a type reference and a
-            # real error, which is exactly the typo class this tool exists to catch.
-            name = None
-            if kind in ('variable', 'method'):
-                for f in lines[i + 1:]:
-                    if 'symbol:' in f:
-                        parts = f.split('symbol:')[1].split()
-                        name = parts[1] if len(parts) > 1 else None
-                        break
+                    parts = f.split('symbol:')[1].split()
+                    kind = parts[0] if parts else None
+                    name = parts[1] if len(parts) > 1 else None
+                elif 'location:' in f:
+                    location = f.split('location:')[1].strip()
+            # Tolerate only what a fragment legitimately leaves undeclared: a local
+            # or helper looked up in the snippet's own wrapper class. Two things
+            # look similar and are real errors:
+            #   - "location: class Builder" (or any class other than SnipNNN) means
+            #     a member lookup on a real type failed -- a misspelled setter or
+            #     getter, the drift a proto field rename causes.
+            #   - javac reports an unknown *type* used as an expression receiver as
+            #     "symbol: variable Foo", indistinguishable by kind from a local, so
+            #     UpperCamelCase names are treated as type references.
+            # javac omits "location:" for an unqualified name inside an anonymous
+            # class (a StreamObserver in a snippet, say), which has no name to print.
+            # A qualified member lookup always carries one, so absent means wrapper.
+            in_wrapper = location is None or re.fullmatch(r'class Snip\d+', location)
             if (kind in ('variable', 'method') and 'cannot find symbol' in msg
-                    and name and not name[0].isupper()):
+                    and name and not name[0].isupper() and in_wrapper):
                 continue  # expected: snippets are fragments
             e = by_class.get(cls, {})
             if e.get('partial'):
                 partial += 1
                 continue  # snippet is explicitly marked as not compilable
-            detail = f" ({kind})" if kind else ""
+            detail = f" ({' '.join(filter(None, (kind, name)))})" if kind else ""
+            if location and not in_wrapper:
+                detail += f" in {location}"
             real.append(f"  {e.get('doc', cls)}:{e.get('line', '?')}  {msg}{detail}")
+
+        # javac failed but reported nothing attributable to a snippet: a bad flag, an
+        # unreadable classpath, no source files. Every error being filtered is fine;
+        # a failure that was never parsed at all is not.
+        if r.returncode != 0 and parsed == 0:
+            print(f"\nerror: javac exited {r.returncode} without a snippet error:\n"
+                  f"{r.stderr.strip()}")
+            return 1
 
         if real:
             print(f"\n{len(real)} real problem(s):\n" + "\n".join(real))
-            print("\n(unresolved variables and methods are filtered out -- "
-                  "snippets are fragments; mark a deliberately non-compiling "
-                  "snippet with '// cookbook:partial <reason>')")
+            print("\n(unresolved locals and helpers in the snippet itself are "
+                  "filtered out -- snippets are fragments; mark a deliberately "
+                  "non-compiling snippet with '// cookbook:partial <reason>')")
             return 1
 
         note = f" ({partial} skipped in cookbook:partial snippets)" if partial else ""
-        print(f"no unresolved types or syntax errors{note}")
+        print(f"no unresolved types or members, and no syntax errors{note}")
         return 0
     finally:
         if not args.keep:

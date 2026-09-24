@@ -1,0 +1,46 @@
+name: CI
+
+# Builds the jar and compiles every cookbook snippet against it, on every pull request and on
+# every push to main.  See plan/tickets/142/plan.md for the design rationale.
+#
+# No paths / paths-ignore filter, deliberately: a workflow skipped by a path filter never
+# reports a status, so a PR touching only filtered paths would wait forever on the required
+# check.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# PR runs are superseded by the next push to the branch, so cancel them.  Pushes to main
+# each get their own group (keyed on the SHA) so every merged commit gets a verdict.
+concurrency:
+  group: ci-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # The job name is what the main-branch ruleset requires.  Renaming it leaves the ruleset
+  # waiting on a check that never reports, which blocks every PR -- update the ruleset first.
+  ci-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Same pins as release.yml; Dependabot (.github/dependabot.yml) bumps both together.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      # package rather than compile: this is the build release.yml runs, so a pom change
+      # that would break a release fails here instead of on the rel-* tag.
+      - name: Build
+        run: mvn -B package
+
+      # python3 comes from the runner image; the script is stdlib-only.
+      - name: Check cookbook snippets
+        run: python3 tools/check-cookbook-snippets.py
