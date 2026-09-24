@@ -192,8 +192,14 @@ The implementation may keep `-exec` rather than `xargs`. The point is matching b
 
 After the fixup, a guard step fails the job in two cases:
 
-- **Unfixed imports.** Any generated file still contains a line matching `^import [A-Za-z0-9_]+_pb2\b`.
-  This catches a future generator that changes its import shape.
+- **Unfixed imports.** Any generated file still contains an absolute import of a generated
+  module, in either form: a line matching `^(import|from) [A-Za-z0-9_]+_pb2\b`. This catches a
+  future generator that changes its import shape, including one that switches to
+  `from common_pb2 import …`, which the sed does not rewrite. Relative imports
+  (`from . import …`) cannot match, and neither can dotted well-known-type imports such as
+  `from google.protobuf import timestamp_pb2`. Tested against the triage output: the fixed tree
+  passes, and both an unfixed `import` line and an injected `from common_pb2 import` line are
+  caught.
 - **Missing stubs.** Any `*.py` module in `out/python` has no matching `*.pyi`. This catches a
   generator flag that was dropped or silently did nothing.
 
@@ -319,13 +325,17 @@ One dp-grpc PR:
    - The artifact downloads.
    - The `.py` files are byte-identical to the stubs committed in dp-python-lib.
    - Every `.pyi` import between generated modules is relative.
+   - With the artifact dropped into a dp-python-lib `main` checkout and the suppression removed
+     (the `exclude` and the `follow_imports = "skip"` override), `mypy src/` reports no
+     `name-defined` / `attr-defined` errors. Other errors are expected. They are the hand-written
+     findings listed in [The experiment](#the-experiment), and they are not part of this check.
 
    Separately, check that the guard fails closed by running it locally on a copy with one import
-   left unfixed.
+   left unfixed, in each of the two absolute forms.
 
-The ticket's acceptance criteria are met by step 7 together with the triage run above. The run
-already showed zero `name-defined` / `attr-defined` errors against dp-python-lib `main` with the
-mypy-protobuf stubs. Step 7 re-confirms it on the workflow's own output.
+The ticket's acceptance criteria are met by step 7. The triage run already showed zero
+`name-defined` / `attr-defined` errors against dp-python-lib `main` with locally generated
+mypy-protobuf stubs. The last check in step 7 repeats that run on the workflow's own output.
 
 The dp-python-lib steps (1 and 5 under [Cross-repo sequencing](#cross-repo-sequencing)) belong to
 that repo's tickets. They are not part of this PR.
