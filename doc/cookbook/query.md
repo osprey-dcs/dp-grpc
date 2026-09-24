@@ -287,7 +287,7 @@ QuerySpec querySpec = QuerySpec.newBuilder()
 String pageToken = loadCheckpoint();     // "" on a fresh run
 do {
     QueryBucketsRequest request = QueryBucketsRequest.newBuilder()
-        .setQuerySpec(querySpec)
+        .setQuerySpec(querySpec)         // SAME spec on every page
         .setExecutionOptions(ExecutionOptions.newBuilder()
             .setLimit(500)               // DataBuckets per page
             .setPageToken(pageToken))
@@ -305,6 +305,10 @@ do {
     saveCheckpoint(pageToken);           // persist BEFORE the next call to make restart safe
 } while (!pageToken.isEmpty());
 ```
+
+As with `querySamples`, **the page token is not a self-contained cursor**: every request must
+resubmit the same `QuerySpec` alongside it, so a job that resumes from a checkpoint must rebuild
+the identical spec, not just reload the token.
 
 Every bucket in a page is complete — paging boundaries always fall *between* buckets, never
 inside one.  An empty result is an empty `dataBuckets` list, **not** an `ExceptionalResult`.
