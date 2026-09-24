@@ -263,10 +263,15 @@ mvn compile                                   # names and shapes, via the protos
 python3 tools/check-cookbook-snippets.py      # every ```java block, via javac
 ```
 
+CI runs both on every pull request and every push to `main` (`.github/workflows/ci.yml`, job
+`ci-build`, which runs `mvn -B package` rather than `compile` to match `release.yml`). Running
+them locally before pushing is still the fast loop. The job name `ci-build` is what the `main`
+ruleset requires, so do not rename it without updating the ruleset first.
+
 `tools/check-cookbook-snippets.py` extracts every ```java block in `doc/cookbook/`, wraps each
 in a class with wildcard imports plus that document's own imports block, and compiles the lot
-against `target/classes`. It exits non-zero on any unresolved **type** or syntax error, so it
-works as a pre-commit or CI gate. Run `mvn compile` first. `--keep DIR` retains the generated
+against `target/classes`. It exits non-zero on any unresolved **type** or syntax error, which
+is what makes it usable as the CI gate. Run `mvn compile` first. `--keep DIR` retains the generated
 sources for inspection.
 
 Two things it deliberately tolerates:

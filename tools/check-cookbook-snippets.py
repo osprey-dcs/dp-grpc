@@ -13,8 +13,9 @@ What the results mean:
   unresolved VARIABLE  expected -- the snippet is a fragment
   syntax error         a real bug -- the snippet is not valid Java
 
-Exits non-zero if any unresolved type or syntax error is found, so this is usable
-as a pre-commit or CI check.
+Exits non-zero if any unresolved type or syntax error is found. CI runs it on every
+pull request and push to main (.github/workflows/ci.yml); run it locally before
+pushing for a faster loop.
 
 Usage:
     mvn compile                                  # generate and compile the stubs first
