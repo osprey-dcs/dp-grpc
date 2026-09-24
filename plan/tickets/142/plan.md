@@ -37,10 +37,11 @@ Every factual premise in the ticket was re-checked on 2026-09-24 against the cur
 | `release.yml` pins actions to SHAs and explains why | Yes |
 | The checks currently pass on `main` | Yes: `mvn compile` plus the check took about 7 s on a warm local build (103 blocks from 9 docs, 5 `cookbook:partial` skips). A new gate will not be red on day one |
 
-Two things in the ticket are **stale or imprecise**:
+Two things in the original ticket text were **stale or imprecise**. The ticket has since been
+rewritten to match this plan, so neither appears there now:
 
-- It lists #137 as an open workflow ticket. #137 is merged, and #136 is closed.
-- It says `release.yml` "already does" `mvn compile`. It actually runs `mvn -B package`. See D2.
+- It listed #137 as an open workflow ticket. #137 is closed (its PRs merged), and so is #136.
+- It said `release.yml` "already does" `mvn compile`. It actually runs `mvn -B package`. See D2.
 
 Two facts the ticket does not mention, and which shape the plan:
 
@@ -48,8 +49,10 @@ Two facts the ticket does not mention, and which shape the plan:
   branch". A new workflow is advisory until a ruleset requires its check. See D5.
 - **Dependabot already covers the new workflow.** `.github/dependabot.yml` watches the
   `github-actions` ecosystem at `/`, which picks up every file in `.github/workflows/`. A new
-  `ci.yml` needs no dependabot change. It also means the monthly grouped action-bump PR will get
-  its first automated check. Today it merges untested until the next release tag.
+  `ci.yml` needs no dependabot change. It also gives the monthly grouped action-bump PR its first
+  automated check, but only a partial one: `ci.yml` exercises `checkout` and `setup-java` alone.
+  Bumps to `upload-artifact`, `download-artifact`, `cosign-installer`, `action-gh-release`, and
+  `setup-python` still go untested until a release or a `workflow_dispatch` rehearsal.
 
 ## Verdict
 
@@ -87,12 +90,26 @@ every workflow is easier to keep than a rule with an exception.
 **D5: Make the check required, through a ruleset on `main`.** Without this the workflow reports
 but does not gate, and the ticket's premise that the checks "should not depend on memory" is only
 half met. This is a repository setting, not a file in the PR, so it is a separate step taken
-after the workflow has run green at least once (GitHub offers a check as "required" only after it
-has reported). It needs a maintainer with admin rights on the repo.
+after the workflow has run green at least once. A ruleset accepts any check name, but the UI
+suggests only checks that have recently reported, and requiring a check before it has ever run
+green would block every open PR. It needs a maintainer with admin rights on the repo.
 
-Because a required check is matched by name, the job gets a deliberately stable name (`build`),
-and the workflow file says so. A rename later silently leaves the ruleset requiring a check that
-no longer runs, which blocks every PR.
+Because a required check is matched by name, the job gets a deliberately stable and specific
+name (`ci-build`), and the workflow file says so. A rename later silently leaves the ruleset
+requiring a check that no longer runs, which blocks every PR. A generic name such as `build`
+invites a collision: any other workflow's job, or a plain commit status, named `build` would
+satisfy the rule.
+
+The ruleset settles two more things:
+
+- **The check's source is pinned to the GitHub Actions app.** Name matching alone accepts a
+  status of that name from any integration, or one posted through the API. Pinning the source
+  means only the workflow run can satisfy it.
+- **Branches must be up to date before merging.** The snippet check spans files, so two PRs can
+  each pass alone and fail together — a proto rename on `main` and a new recipe on a branch that
+  uses the old name. Requiring an up-to-date branch catches that before merge rather than on the
+  following push-to-`main` run (D1). The cost is an occasional "Update branch" click, which is
+  acceptable at this repo's PR volume.
 
 **D6: Cancel superseded PR runs.** `concurrency` keyed on the ref with
 `cancel-in-progress: true`, so a force-push does not leave a stale run occupying a runner.
@@ -126,7 +143,7 @@ permissions:
 jobs:
   # The job name is what the main-branch ruleset requires.  Renaming it leaves the ruleset
   # waiting on a check that never reports, which blocks every PR -- update the ruleset first.
-  build:
+  ci-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -155,8 +172,9 @@ image ships, so no `setup-python` step is needed.
 
 - **Contributors.** PRs gain a check. Once D5 is in place, a PR that breaks a proto or a cookbook
   snippet cannot merge until it is fixed. This is the intended effect.
-- **Dependabot.** Its PRs now run CI. That is useful, but a bump that breaks `checkout` or
-  `setup-java` now shows up as a red PR rather than a broken release.
+- **Dependabot.** Its PRs now run CI. A bump that breaks `checkout` or `setup-java` now shows up
+  as a red PR rather than a broken release. Bumps to the other actions are not exercised (see
+  Triage verification).
 - **Releases, dp-service, dp-python-lib, and users of the jar.** None affected. No proto, pom,
   or release-workflow change.
 - **Release notes.** This change is not user-visible, since it affects contributors only, so it
@@ -172,13 +190,15 @@ One PR:
 3. `tools/check-cookbook-snippets.py`: in the docstring, change "usable as a pre-commit or CI
    check" to name `ci.yml` as the place it runs.
 4. Verify on the PR itself: the new workflow runs and passes. Then push a throwaway commit that
-   breaks one snippet (say, a misspelled type), confirm the job goes red on that step, and revert
-   it.
+   breaks one snippet (say, a misspelled type), confirm the job goes red on that step, and remove
+   the commit with a force-push rather than a revert. This repo merges PRs with merge commits, so
+   a break-and-revert pair would land permanently in `main`'s history.
 
 After merge, as a maintainer step outside the PR:
 
-5. Add `build` as a required status check on `main`, via a new ruleset or by extending the
-   existing one. Confirm it on the next PR.
+5. Add `ci-build` as a required status check on `main`, via a new ruleset or by extending the
+   existing one: source pinned to GitHub Actions, and "require branches to be up to date"
+   enabled (D5). Confirm it on the next PR.
 
 ## Not doing
 
