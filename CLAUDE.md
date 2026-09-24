@@ -265,21 +265,25 @@ python3 tools/check-cookbook-snippets.py      # every ```java block, via javac
 
 CI runs both on every pull request and every push to `main` (`.github/workflows/ci.yml`, job
 `ci-build`, which runs `mvn -B package` rather than `compile` to match `release.yml`). Running
-them locally before pushing is still the fast loop. The job name `ci-build` is what the `main`
-ruleset requires, so do not rename it without updating the ruleset first.
+them locally before pushing is still the fast loop. `ci-build` is the check name a `main`
+ruleset matches on (plan D5, a maintainer step after the workflow landed), so do not rename the
+job without updating the ruleset first.
 
 `tools/check-cookbook-snippets.py` extracts every ```java block in `doc/cookbook/`, wraps each
 in a class with wildcard imports plus that document's own imports block, and compiles the lot
-against `target/classes`. It exits non-zero on any unresolved **type** or syntax error, which
-is what makes it usable as the CI gate. Run `mvn compile` first. `--keep DIR` retains the generated
-sources for inspection.
+against `target/classes`. It exits non-zero on any unresolved **type** or **member** or syntax
+error, and also when it extracts no blocks at all or javac fails in a way it does not recognize,
+so a broken check cannot pass silently. Run `mvn compile` first. `--keep DIR` retains the
+generated sources for inspection.
 
 Two things it deliberately tolerates:
 
-- **Unresolved lowerCamelCase names** (`response`, `stub`) — snippets are fragments, so locals
-  are expected to be undeclared. Note that javac reports an unknown *type* used as an expression
-  receiver as `symbol: variable Foo`, so the filter keys on capitalization: `Foo` is a type
-  reference and a real error, `foo` is a fragment's local.
+- **Unresolved lowerCamelCase names in the snippet itself** (`response`, `stub`, a helper
+  call) — snippets are fragments, so locals are expected to be undeclared. The filter keys on
+  two things. Capitalization: javac reports an unknown *type* used as an expression receiver as
+  `symbol: variable Foo`, so `Foo` is a type reference and a real error, `foo` is a fragment's
+  local. And javac's `location:`: a lookup in the snippet's wrapper class is a local, but one on
+  a real type (`location: class Builder`) is a misspelled setter or getter and a real error.
 - **Snippets marked `// cookbook:partial <reason>`** — a placeholder type standing in for
   something the caller supplies, or an interface with methods elided. Keep these rare, and
   always make the elision visible to the reader as well.
