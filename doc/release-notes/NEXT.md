@@ -141,8 +141,8 @@ could not see a single message class. `generate-python-stubs.yml` now also emits
 [mypy-protobuf](https://github.com/nipunn1313/mypy-protobuf) `.pyi` stubs beside every module.
 They type message constructors, fields, and enums and, with
 [`types-grpcio`](https://pypi.org/project/types-grpcio/) installed, the request and response of
-every RPC on the service stubs. The `.py` modules are byte-identical to what the previous sync
-delivered.
+every RPC on the service stubs. The generator change leaves the `.py` output unchanged: those
+modules differ from the previous sync only where the protos changed.
 
 Two further changes to the workflow:
 
@@ -171,7 +171,7 @@ Two further changes to the workflow:
 
 When the version is known and the release is being cut:
 
-1. **If this release includes #158, check dp-python-lib before pushing the tag.** The first sync
+1. **Check dp-python-lib against the typed stubs (#158) before pushing the tag.** The first sync
    that carries `.pyi` files type-checks dp-python-lib's code and cookbook snippets against them,
    even with its suppression of the generated package in place. Confirm its preparation PR,
    [osprey-dcs/dp-python-lib#60](https://github.com/osprey-dcs/dp-python-lib/pull/60), is still

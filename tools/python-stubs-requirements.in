@@ -8,6 +8,10 @@
 #   pip-compile --generate-hashes --allow-unsafe --strip-extras \
 #       tools/python-stubs-requirements.in
 #
+# This is the authoritative command.  The .txt header records it with an added `--no-index`:
+# pip-tools (7.6.1, used for the current lock) writes that into the header itself, even when the
+# flag was not passed.  Do not pass `--no-index`, which would make pip-compile skip PyPI entirely.
+#
 # --allow-unsafe is required: grpcio-tools depends on setuptools, and without the flag
 # pip-compile omits it from the lock, after which `pip install --require-hashes` refuses to run.
 #

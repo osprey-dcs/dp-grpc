@@ -96,7 +96,7 @@ jobs:
           set -euo pipefail
           FAILED=0
 
-          if grep -rnE '^(import|from) [A-Za-z0-9_]+_pb2\b' out/python; then
+          if grep -rnE '^(import|from) [A-Za-z0-9_]+_pb2(_grpc)?\b' out/python; then
             echo "::error::Absolute import of a generated module survived the fixup (listed above)"
             FAILED=1
           fi
