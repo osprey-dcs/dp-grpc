@@ -10,6 +10,17 @@
   generation out of PR CI.
 - **Status**: triaged and scoped 2026-09-24; not yet implemented.
 
+> **Correction, 2026-09-24.** The plan counts 10 errors on the first stub-bearing sync. There is an
+> eleventh, in dp-python-lib's cookbook snippet checker rather than in `mypy src/`: a
+> `doc/cookbook/conventions.md` snippet rebinds `t1`, which the checker's preamble declares as a
+> `datetime`, to the `common_pb2.Timestamp` that `to_timestamp()` returns. That passes only while
+> the stubs are untyped. So a sync that carries `.pyi` files type-checks the docs as well as `src/`,
+> even with the suppression intact. [Blast radius](#blast-radius) places the snippet checker's
+> exposure at step 5; it starts at step 4. The fix landed with the preparation PR,
+> [osprey-dcs/dp-python-lib#60](https://github.com/osprey-dcs/dp-python-lib/pull/60), which was
+> verified against locally generated mypy-protobuf stubs with the checker included. Any later
+> check against those stubs, including step 3's, should run the checker as well as `mypy src/`.
+
 The generated `_pb2.py` and `_pb2_grpc.py` modules carry no type information. As a result,
 dp-python-lib's `mypy src/` cannot see a single protobuf message class. This plan makes the stub
 workflow emit `.pyi` files alongside them, and sets out the dp-python-lib work needed to benefit
