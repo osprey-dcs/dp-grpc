@@ -69,7 +69,8 @@ The ticket asks for the generator to be chosen by generating both options and ru
 dp-python-lib's `mypy src/` against each. That was done:
 
 - **Toolchain.** `grpcio-tools` 1.84.0 (protobuf gencode 7.35.1), `mypy-protobuf` 5.1.0, and
-  mypy 2.3.1, on Python 3.12.
+  mypy 2.3.1, on Python 3.12. The workflow runs 3.11. Generated output should not depend on the
+  interpreter version, and step 7 of the work breakdown checks the workflow's own output anyway.
 - **Baseline check.** The baseline output, with the fixup applied, is **byte-identical** to the
   stubs committed in dp-python-lib today. The unpinned install currently resolves to exactly what
   was last synced.
@@ -86,6 +87,13 @@ dp-python-lib's `mypy src/` against each. That was done:
 | `--pyi_out` | 5 `_pb2.pyi` (2.7k lines) | 5 errors, 0 `name-defined` / `attr-defined` |
 | mypy-protobuf | 5 `_pb2.pyi` + 5 `_pb2_grpc.pyi` (14.7k lines) | 11 errors, 0 `name-defined` / `attr-defined`, of which 4 are `overload-cannot-match` *inside* the generated `_pb2_grpc.pyi` |
 | mypy-protobuf + `types-grpcio`, with the `grpc` ignore dropped | same | 9 errors, none in generated code |
+
+The suppression was removed for those runs, to see everything the stubs expose. A separate run
+answers what the *first sync* does to dp-python-lib as configured today: mypy-protobuf stubs
+swapped in, suppression and `grpc` ignore both left in place. It reports **10 errors**: the
+seven hand-written ones below, plus three of the four `overload-cannot-match`. mypy still reads
+the `.pyi` files despite `follow_imports = "skip"`. The fourth is absent only because nothing
+checked imports `ingestion_stream_pb2_grpc`.
 
 The errors that remain are in hand-written code, and they are real findings rather than stub
 defects:
@@ -134,17 +142,31 @@ nothing else. It adds no runtime dependency for anyone, because the `.pyi` files
 type checkers. The price is that mypy-protobuf's typing is stricter: its enum `NewType`s surface
 two extra errors in dp-python-lib. Those are genuine type confusions and worth fixing anyway.
 
-**D2: Pin both generators, in one requirements file.** The pins go in
-`tools/python-stubs-requirements.txt`:
+**D2: Pin both generators, hash-locked, in one requirements file.** The direct pins go in
+`tools/python-stubs-requirements.in`:
 
 ```
 grpcio-tools==1.84.0
 mypy-protobuf==5.1.0
 ```
 
-The workflow and `python-stubs.md` both install from this file, so the pins cannot drift between
-the automated path and the manual one. The separate `grpcio` and `protobuf` installs are dropped:
-`grpcio-tools` depends on both, and generation needs nothing else.
+That file is compiled with `pip-compile --generate-hashes` into
+`tools/python-stubs-requirements.txt`, which locks every transitive package (`grpcio`,
+`protobuf`, `types-protobuf`, …) to an exact version and hash. Both files are committed. The
+workflow and `python-stubs.md` install with `pip install --require-hashes -r
+tools/python-stubs-requirements.txt`, so the pins cannot drift between the automated path and the
+manual one. The separate `grpcio` and `protobuf` installs are dropped: `grpcio-tools` depends on
+both, and generation needs nothing else. By default `pip-compile` records the hashes of every
+published distribution of each pinned version, so the lock installs on any platform, not only
+the one it was compiled on.
+
+The hashes are there because of where the install runs. This job later checks out dp-python-lib
+with `DP_BOT_TOKEN`, a cross-repo write credential. That is why the workflow pins its actions to
+commit SHAs. mypy-protobuf is a new package in that job, and it runs as a protoc plugin.
+`==` pins on the two direct dependencies would leave the transitive ones floating, and would
+still trust PyPI to serve the same bytes for a given version. Hash-locking applies the same
+standard as the SHA pins, and it also makes the generated output fully reproducible, down to
+the `protobuf` package the mypy-protobuf plugin runs against.
 
 Pinning `grpcio-tools` is the more important half. It is what stamps `GRPC_GENERATED_VERSION` and
 the protobuf gencode version into the `.py` files. dp-python-lib's runtime minimums
@@ -184,9 +206,9 @@ before anything reaches dp-python-lib.
 on every run, using the `actions/upload-artifact` SHA already pinned in `release.yml`.
 
 The upload is what makes the dry run useful for more than eyeballing. dp-python-lib can download
-the exact stubs a release will deliver and fix its code against them *before* the sync PR exists.
-That is how the sequencing below works. On real runs, the artifact is an audit record of what was
-synced. It needs no additional token permission.
+the exact stubs a release will deliver and confirm its code against them *before* the sync PR
+exists. In the sequencing below, that is step 3's check on the preparation PR. On real runs, the
+artifact is an audit record of what was synced. It needs no additional token permission.
 
 **D5: `types-grpcio` is dp-python-lib's dependency, not ours.** Generation does not need it. It
 matters only where the stubs are type-checked. It is still recorded here, and in
@@ -208,22 +230,37 @@ also pass against today's untyped stubs:
 
 Recommended order:
 
-1. **dp-grpc**: land this ticket's implementation PR.
-2. **dp-grpc**: run the workflow by `workflow_dispatch` with `dry_run: true`, and download the
-   `out/python` artifact (D4).
-3. **dp-python-lib**: land a *preparation* PR. It adds `types-grpcio` to the `dev` extra, drops
+1. **dp-python-lib**: land a *preparation* PR. It adds `types-grpcio` to the `dev` extra, drops
    the `grpc` ignore and fixes the resulting `mldp_client.py` errors, and fixes the hand-written
    errors listed above. It must be verified locally against *both* the stubs committed today and
-   the step-2 artifact, and must pass under both.
+   mypy-protobuf stubs, and must pass under both. The mypy-protobuf stubs do not have to wait for
+   dp-grpc. They can be generated locally with the D2 versions and flags, which is how the triage
+   experiment produced them. Once step 3 has run, the dry-run artifact is the same thing.
+2. **dp-grpc**: land this ticket's implementation PR. It adds the release gate described below.
+3. **dp-grpc**: run the workflow by `workflow_dispatch` with `dry_run: true`, and download the
+   `out/python` artifact (D4). Confirm dp-python-lib passes against it, as a check on step 1.
 4. **dp-grpc**: the next `rel-*` tag syncs the stubs as usual. The sync PR arrives green.
 5. **dp-python-lib**: land a *follow-up* PR. It removes the suppression (`exclude` and the
    `follow_imports = "skip"` override), types `_stub`, adds `py.typed`, and confirms that the
    `.pyi` files and `py.typed` are in the wheel.
 
+The hard constraint is narrower than the numbering: step 1 must land before any `rel-*` tag is
+pushed on a commit that contains step 2. Steps 1 and 2 have no dependency on each other. Putting
+step 1 first removes the hazard outright, rather than relying on nobody tagging in between.
+
+That gap is real, not theoretical. When this plan was written, `doc/release-notes/NEXT.md`
+already held #137 and #153, and that release was waiting to be cut. If step 2 merges before the
+release and step 1 has not landed, that release's sync is the one that breaks.
+
+**Release gate.** The implementation PR adds an item to the "Cutting the release" checklist in
+`NEXT.md`: *if this release includes #158, confirm dp-python-lib's preparation PR has merged
+before pushing the tag.* The checklist is the one document a release cutter is certain to read,
+so this covers the case where the order above is not followed.
+
 Step 5 cannot come earlier. With untyped stubs, removing the suppression produces the 386 errors
 again.
 
-**Fallback.** If a sync reaches dp-python-lib before step 3, a maintainer pushes the step-3 fixes
+**Fallback.** If a sync reaches dp-python-lib before step 1, a maintainer pushes the step-1 fixes
 onto the bot's `grpc-sync-*` branch before merging. It works, but it mixes hand-written changes
 into an automated sync PR, which is why it is the fallback.
 
@@ -234,7 +271,7 @@ The dry-run artifact gives dp-python-lib the same stubs to prepare against witho
 
 ## Blast radius
 
-- **dp-python-lib CI.** It goes red on the first stub-bearing sync unless step 3 has landed. This
+- **dp-python-lib CI.** It goes red on the first stub-bearing sync unless step 1 has landed. This
   is the one real hazard, and the sequencing above addresses it.
 - **dp-python-lib runtime users.** No change. Every `.py` file is byte-identical, and the `.pyi`
   files are inert at runtime. The wheel gets about 14.7k lines of `.pyi`. Once step 5 adds
@@ -254,24 +291,29 @@ The dry-run artifact gives dp-python-lib the same stubs to prepare against witho
 
 One dp-grpc PR:
 
-1. **Pin file.** Add `tools/python-stubs-requirements.txt` with the D2 pins and a header comment
-   covering two points. First, `grpcio-tools` sets dp-python-lib's runtime minimums, so a bump
-   needs a matching dp-python-lib change. Second, this file is deliberately not Dependabot-managed.
+1. **Pin files.** Add `tools/python-stubs-requirements.in` with the D2 pins, and the
+   hash-locked `tools/python-stubs-requirements.txt` compiled from it. The `.in` file gets a
+   header comment covering three points. First, `grpcio-tools` sets dp-python-lib's runtime
+   minimums, so a bump needs a matching dp-python-lib change, including its `[codegen]` extra.
+   Second, the file is deliberately not Dependabot-managed. Third, the exact `pip-compile`
+   command that regenerates the `.txt`.
 2. **Install step.** In `generate-python-stubs.yml`, install with
-   `pip install -r tools/python-stubs-requirements.txt`.
+   `pip install --require-hashes -r tools/python-stubs-requirements.txt`.
 3. **Generation step.** Add `--mypy_out=out/python --mypy_grpc_out=out/python`, widen the fixup
    `find` to `.pyi` (D3), and add the guard step after the fixup (D3).
 4. **Dry-run output.** List `.py` and `.pyi` in the summary with separate counts (D4), and upload
    `out/python` as an artifact on every run, pinned to `release.yml`'s `upload-artifact` SHA.
 5. **`doc/cookbook/python-stubs.md`.** Update "How Python stubs are published" to mention the
-   `.pyi` files. Update "Generating stubs yourself" to use the requirements file and the two new
-   flags, and "The import fixup" to use the widened glob. Add a short "Type checking" section
-   covering three points:
+   `.pyi` files. Update "Generating stubs yourself" to install from the hash-locked requirements
+   file and use the two new flags, and "The import fixup" to use the widened glob. Add a short
+   "Type checking" section covering three points:
    - Which module carries what: `_pb2.pyi` holds the messages and `_pb2_grpc.pyi` the service
      stubs.
    - Stub calls are typed only with `types-grpcio` installed.
    - A stub held in an `Any`-typed variable gets no checking.
-6. **Release notes.** Add a `doc/release-notes/NEXT.md` section and its Contents entry.
+6. **Release notes.** Add a `doc/release-notes/NEXT.md` section and its Contents entry, and add
+   the release gate item to its "Cutting the release" checklist (see
+   [Cross-repo sequencing](#cross-repo-sequencing)).
 7. **Verify on the PR.** Dispatch the workflow from the PR branch with `dry_run: true`, then:
    - The summary shows 10 `.py` and 10 `.pyi` files.
    - The artifact downloads.
@@ -285,7 +327,7 @@ The ticket's acceptance criteria are met by step 7 together with the triage run 
 already showed zero `name-defined` / `attr-defined` errors against dp-python-lib `main` with the
 mypy-protobuf stubs. Step 7 re-confirms it on the workflow's own output.
 
-The dp-python-lib steps (3 and 5 under [Cross-repo sequencing](#cross-repo-sequencing)) belong to
+The dp-python-lib steps (1 and 5 under [Cross-repo sequencing](#cross-repo-sequencing)) belong to
 that repo's tickets. They are not part of this PR.
 
 ## dp-python-lib handoff
@@ -300,7 +342,12 @@ that nothing falls between the two repos:
   - fix `mldp_client.py` lines 92 and 108 (`None` assigned to `grpc.Channel`);
   - fix `machine_config_client.py` lines 1081–1082 and 1281–1282 (unchecked `Optional`);
   - fix `query_conversions.py` line 33 (unguarded `EnumDescriptor | None`);
-  - fix `export_client.py` lines 33 and 193 (enum `ValueType`).
+  - fix `export_client.py` lines 33 and 193 (enum `ValueType`);
+  - add `mypy-protobuf` to the `[codegen]` extra, which today lists only `grpcio-tools>=1.84.0`.
+    Without it, anyone regenerating stubs through dp-python-lib's own toolchain gets `.py`
+    files with no `.pyi`. The extra is a second record of the generator requirement, so either
+    match its versions to dp-grpc's `tools/python-stubs-requirements.in`, or have its comment
+    point there as the authority.
 
   Line numbers are as of dp-python-lib `origin/main` on 2026-09-24.
 - **After the sync:**
