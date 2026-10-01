@@ -80,12 +80,12 @@ jobs:
       # On a release the file being published is then run through the release-notes checker
       # (osprey-dcs/data-platform#98), as a backstop to the same check in CI: a relative link,
       # a link not pinned to this tag, or a changed signing regexp would otherwise go out as
-      # the release body.  A rehearsal has no tag and so no notes file of its own; it runs the
-      # checker over every notes file instead, as CI does, so a rehearsal proves the backstop
-      # runs.  It only warns: a rehearsal publishes nothing, and the notes on the dispatched
-      # ref are CI's to enforce, so they should not stop the build and signing being
-      # rehearsed.  A real release fails.  NOTES_PATH is set only on a release, which is what
-      # "Stage release notes" below relies on.
+      # the release body.  A rehearsal has no rel-* tag and so no notes file of its own; it
+      # runs the checker over every notes file instead, as CI does, so a rehearsal proves the
+      # backstop runs.  It only warns: a rehearsal publishes nothing, and the notes on the
+      # dispatched ref are CI's to enforce, so they should not stop the build and signing
+      # being rehearsed.  A real release fails.  NOTES_PATH is set only on a release, which is
+      # what "Stage release notes" below relies on.
       - name: Verify release notes exist
         run: |
           set -euo pipefail
@@ -103,7 +103,7 @@ jobs:
             exit 1
           fi
           python3 .github/scripts/check-release-notes.py "$NOTES"
-          echo "NOTES_PATH=$NOTES" >> $GITHUB_ENV
+          echo "NOTES_PATH=$NOTES" >> "$GITHUB_ENV"
 
       - name: Build
         run: mvn -B package

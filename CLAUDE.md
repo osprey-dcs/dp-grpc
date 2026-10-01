@@ -17,7 +17,8 @@ src/main/proto/       # All proto files (the primary artifact of this repo)
 doc/cookbook/         # Task-oriented worked examples (see "Documentation" below)
 doc/                  # Images and proposed/design proto files
 plan/                 # Official plan documents, one dir per issue (see "Planning Artifacts")
-tools/                # Dev scripts (cookbook snippet and release-notes checkers) and the hash-locked Python stub generator pins
+tools/                # Dev scripts (cookbook snippet checker) and the hash-locked Python stub generator pins
+.github/scripts/      # Release-notes checker, shared verbatim across the five osprey-dcs repos
 pom.xml               # Maven build; runs protoc via protobuf-maven-plugin
 ```
 
@@ -353,12 +354,13 @@ Write the notes and merge them **before** pushing the `rel-*` tag.
 
 **Links and the signing regexp in the notes are checked** by
 `.github/scripts/check-release-notes.py`, in CI on every PR and again in `release.yml` on the
-tagged file (a `workflow_dispatch` rehearsal checks every notes file and only warns). A `rel-*.md` may have no relative links, and every osprey-dcs blob/tree/raw link must be
-pinned to its own tag; `NEXT.md` links stay on `main`; paths and anchors into this repo must exist;
-every `--certificate-identity-regexp` must be exactly the one `README.env` documents. The rules are
-osprey-dcs/data-platform#98 and the script's docstring. The script is copied verbatim from
-dp-python-lib and differs only in its configuration block, so fix it there and copy it back rather
-than editing this copy. It is at the same path in all five repos.
+tagged file (a `workflow_dispatch` rehearsal checks every notes file and only warns). A
+`rel-*.md` may have no relative links, and every osprey-dcs blob/tree/raw link must be pinned to
+its own tag (or a full commit SHA); `NEXT.md` links stay on `main`; paths and anchors into this
+repo must exist; every `--certificate-identity-regexp` must be exactly the one `README.env`
+documents. The rules are osprey-dcs/data-platform#98 and the script's docstring. The script is
+copied verbatim from dp-python-lib and differs only in its configuration block, so fix it there
+and copy it back rather than editing this copy. It is at the same path in all five repos.
 
 ## Planning Artifacts
 
