@@ -17,6 +17,12 @@ Nothing here should assert what *else* the release contains, either: that is kno
 the release is cut, and a stale claim in a file that already looks finished is not something the
 person cutting the release has any reason to re-read.
 
+Links here are absolute `https://github.com/osprey-dcs/<repo>/blob/main/...` URLs: never relative,
+and never a `rel-*` tag, which would guess the version.  `tools/release-notes/check-release-notes.py`
+(run by CI) also confirms that each link into this repo names a file and heading that exist, so a PR
+that renames a heading linked from here fails CI until the link is fixed.  The links move to the
+release tag at the cut (step 5 below).
+
 ## Contents
 
 - [Signed release artifacts (dp-grpc #137)](#signed-release-artifacts-dp-grpc-issue-137)
@@ -190,14 +196,22 @@ When the version is known and the release is being cut:
    folding in the per-ticket upgrade items above. Call out silent behavior changes separately from
    compile errors, per CLAUDE.md — a change that alters results without raising an error is the
    one a reader most needs up front.
-5. **Repoint `blob/main/...` links to `blob/rel-<version>/...`.** This file is published as the
-   release body via `body_path`, and relative links do not survive that lift — they resolve against
-   the repo root, not `doc/release-notes/`, and 404.  Links here are already absolute for that
-   reason, but one pinned to `main` drifts as the repo moves on; pinned to the tag it keeps
-   describing the content this release actually shipped.
+5. **Repoint every `blob/main/...` link to `blob/rel-<version>/...`**, including links into the
+   other osprey-dcs repos, which release in lockstep. This file is published as the release body
+   via `body_path`, where a relative link 404s and a `main` link drifts as the repo moves on; pinned
+   to the tag it keeps describing the content this release actually shipped. Don't hunt for them
+   by eye: step 7 lists every one you missed, and any stale `rel-*` tag copied from older notes.
 6. **Delete this "Cutting the release" section** and update Contents.
-7. **Add the row to `README.md`'s `## Release Notes` table.**
-8. **Decide whether the release is breaking** and say so in the opening if it is. Note that #137
+7. **Run `python3 tools/release-notes/check-release-notes.py`** and fix everything it lists; CI
+   runs it on the PR too, and `release.yml` runs it again on the tagged file before building. For
+   the new file it fails on a relative link; a link into any osprey-dcs repo not pinned to
+   `rel-<version>`; a path or `#anchor` into this repo that is missing from the tree being tagged,
+   or that points at a duplicated heading; a `--certificate-identity-regexp` that differs from the
+   one `README.env` documents; or a leftover `rel-<version>`, `<version>`, or `<previous>`. That
+   last one includes the generic `dp-grpc-<version>` asset names in the #137 section: give each a
+   concrete version. The rules are in the script's docstring (osprey-dcs/data-platform#98).
+8. **Add the row to `README.md`'s `## Release Notes` table.**
+9. **Decide whether the release is breaking** and say so in the opening if it is. Note that #137
    renames published release assets: that breaks scripted downloads even in a release with no API
    change at all.
-9. **Start a fresh `NEXT.md`** for the following cycle.
+10. **Start a fresh `NEXT.md`** for the following cycle.
