@@ -44,3 +44,10 @@ jobs:
       # python3 comes from the runner image; the script is stdlib-only.
       - name: Check cookbook snippets
         run: python3 tools/check-cookbook-snippets.py
+
+      # Every rel-*.md and NEXT.md, under the link, placeholder, and signing-identity rules of
+      # osprey-dcs/data-platform#98 (the script's docstring has them).  On a cut PR this lists
+      # every link not yet repointed at the tag; on any other PR it fails a rename that breaks a
+      # path or heading the notes link to.  Same python3 and stdlib-only as above.
+      - name: Check release notes
+        run: python3 tools/release-notes/check-release-notes.py
