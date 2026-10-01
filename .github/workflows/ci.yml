@@ -50,4 +50,4 @@ jobs:
       # every link not yet repointed at the tag; on any other PR it fails a rename that breaks a
       # path or heading the notes link to.  Same python3 and stdlib-only as above.
       - name: Check release notes
-        run: python3 tools/release-notes/check-release-notes.py
+        run: python3 .github/scripts/check-release-notes.py

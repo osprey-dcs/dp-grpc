@@ -352,14 +352,13 @@ silently, and nobody cutting the release re-reads a notes file that already look
 Write the notes and merge them **before** pushing the `rel-*` tag.
 
 **Links and the signing regexp in the notes are checked** by
-`tools/release-notes/check-release-notes.py`, in CI on every PR and again in `release.yml` on the
-tagged file. A `rel-*.md` may have no relative links, and every osprey-dcs blob/tree/raw link must be
+`.github/scripts/check-release-notes.py`, in CI on every PR and again in `release.yml` on the
+tagged file (a `workflow_dispatch` rehearsal checks every notes file and only warns). A `rel-*.md` may have no relative links, and every osprey-dcs blob/tree/raw link must be
 pinned to its own tag; `NEXT.md` links stay on `main`; paths and anchors into this repo must exist;
 every `--certificate-identity-regexp` must be exactly the one `README.env` documents. The rules are
 osprey-dcs/data-platform#98 and the script's docstring. The script is copied verbatim from
 dp-python-lib and differs only in its configuration block, so fix it there and copy it back rather
-than editing this copy. It sits in `tools/release-notes/`, not the other repos' `.dev/tools/`
-(gitignored here), at the same depth below the repo root, which the script relies on.
+than editing this copy. It is at the same path in all five repos.
 
 ## Planning Artifacts
 

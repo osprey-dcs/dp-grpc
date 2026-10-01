@@ -18,7 +18,7 @@ the release is cut, and a stale claim in a file that already looks finished is n
 person cutting the release has any reason to re-read.
 
 Links here are absolute `https://github.com/osprey-dcs/<repo>/blob/main/...` URLs: never relative,
-and never a `rel-*` tag, which would guess the version.  `tools/release-notes/check-release-notes.py`
+and never a `rel-*` tag, which would guess the version.  `.github/scripts/check-release-notes.py`
 (run by CI) also confirms that each link into this repo names a file and heading that exist, so a PR
 that renames a heading linked from here fails CI until the link is fixed.  The links move to the
 release tag at the cut (step 5 below).
@@ -202,14 +202,13 @@ When the version is known and the release is being cut:
    to the tag it keeps describing the content this release actually shipped. Don't hunt for them
    by eye: step 7 lists every one you missed, and any stale `rel-*` tag copied from older notes.
 6. **Delete this "Cutting the release" section** and update Contents.
-7. **Run `python3 tools/release-notes/check-release-notes.py`** and fix everything it lists; CI
+7. **Run `python3 .github/scripts/check-release-notes.py`** and fix everything it lists; CI
    runs it on the PR too, and `release.yml` runs it again on the tagged file before building. For
    the new file it fails on a relative link; a link into any osprey-dcs repo not pinned to
    `rel-<version>`; a path or `#anchor` into this repo that is missing from the tree being tagged,
    or that points at a duplicated heading; a `--certificate-identity-regexp` that differs from the
-   one `README.env` documents; or a leftover `rel-<version>`, `<version>`, or `<previous>`. That
-   last one includes the generic `dp-grpc-<version>` asset names in the #137 section: give each a
-   concrete version. The rules are in the script's docstring (osprey-dcs/data-platform#98).
+   one `README.env` documents; or a leftover `rel-<version>` or `<previous>`. The rules are in the
+   script's docstring (osprey-dcs/data-platform#98).
 8. **Add the row to `README.md`'s `## Release Notes` table.**
 9. **Decide whether the release is breaking** and say so in the opening if it is. Note that #137
    renames published release assets: that breaks scripted downloads even in a release with no API
