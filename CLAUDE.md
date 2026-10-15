@@ -323,6 +323,12 @@ signature is published as `SHA256SUMS.cosign.bundle`. See `README.env` for downl
 verification instructions, including the `cosign verify-blob` invocation. Signing landed under
 issue #137; releases through 1.16.0 shipped unsigned per-artifact `.sha256` files instead.
 
+**cosign is pinned to v3.1.3 and documented as the minimum verifier** (issue #166): v3.1.2 and
+earlier, and v2 before the v2.6.5 backport, have a verify-side identity bypass
+(GHSA-fx35-mq7g-6g98), and only the version users verify with protects them, so `README.env`
+names a minimum. Dependabot does not track the `cosign-release` input, so bumping the pin is a
+manual decision; keep it in step with dp-service's and dp-desktop-app's.
+
 `release.yml` splits building/signing from publishing so the OIDC signing token never shares a job
 with `contents: write`. Publishing is gated on a `rel-*` tag push, which makes the
 `workflow_dispatch` rehearsal trigger incapable of publishing. Note that a rehearsal still signs
