@@ -142,9 +142,9 @@ jobs:
 
       # cosign-release is pinned rather than taken from the installer's default, which moves
       # with the installer under a Dependabot bump -- and Dependabot does not track this input,
-      # so nothing flags it falling behind.  v3.1.3: every version up to v3.1.2 has a
-      # verify-side identity bypass (GHSA-fx35-mq7g-6g98).  README.env names v3.1.3 as the
-      # MINIMUM verifier, which is what protects users.  (#166)
+      # so nothing flags it falling behind.  v3.1.3: v3.1.2 and earlier (and v2 before the
+      # v2.6.5 backport) have a verify-side identity bypass (GHSA-fx35-mq7g-6g98).  README.env
+      # names v3.1.3 as the MINIMUM verifier, which is what protects users.  (#166)
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:

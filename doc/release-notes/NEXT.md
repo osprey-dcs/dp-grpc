@@ -77,7 +77,7 @@ about either.  What protects them is the signature: `cosign verify-blob` below c
 against `SHA256SUMS`, and the checksums in turn cover the artifacts.
 
 To verify the signature, install [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
-**v3.1.3 or later** — earlier versions have a verification flaw
+**v3.1.3 or later** — v3.1.2 and earlier (and v2 releases before v2.6.5) have a verification flaw
 ([GHSA-fx35-mq7g-6g98](https://github.com/sigstore/cosign/security/advisories/GHSA-fx35-mq7g-6g98))
 that lets a substituted bundle skip the identity checks. Then run:
 
