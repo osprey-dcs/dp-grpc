@@ -558,9 +558,8 @@ message SerializedDataColumn {
  *   - mixed types: the values of a single column are not all of one type.
  * DataColumn ingestion is supported, and there are no plans to remove it.
  *
- * Caveat for subscribeDataEvent() (ingestion_stream.proto): a PvConditionTrigger on a PV ingested as a
- * DataColumn compares each value against the trigger value, and a value of a different type than the trigger
- * value, including an unset value, is a type mismatch that ends the subscription with an error.
+ * Caveat for subscribeDataEvent(): a PvConditionTrigger on a PV ingested as a DataColumn is subject to the
+ * type-matching rule described on PvConditionTrigger (ingestion_stream.proto), applied to each value.
  *
  * Query results: DataColumn is the supported representation for tabular/sample query results (e.g. the Query V2
  * ColumnTable), where an unset DataValue marks a PV with no sample at a given timestamp.

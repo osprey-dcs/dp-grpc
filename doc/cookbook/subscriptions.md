@@ -182,8 +182,10 @@ is the client's job.
 The threshold is a `dp.service.common.DataValue` — a oneof of scalar and complex types.  Set the
 member matching the PV's ingested type (`setDoubleValue` for a PV ingested as `DoubleColumn`).
 There is **no cross-type coercion**: if you set `setIntValue` against a double-typed PV, the
-service reports a type mismatch and ends the subscription with an error.  For a PV ingested as a
-`DataColumn` the check is made per value, so a value of another type, or an unset (missing)
+service reports the type mismatch as an `ExceptionalResult` and then completes the response
+stream (see [`ExceptionalResult` is terminal](#exceptionalresult-is-terminal)).  That ends the
+whole subscription, including its other triggers, not just the mismatched one.  For a PV ingested
+as a `DataColumn` the check is made per value, so a value of another type, or an unset (missing)
 value, ends the subscription the same way.
 
 `common.proto` steers ingestion away from `DataValue` because of its per-sample allocation

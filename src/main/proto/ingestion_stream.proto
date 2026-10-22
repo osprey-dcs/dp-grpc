@@ -159,8 +159,10 @@ message SubscribeDataEventResponse {
  *
  * The trigger value must be set to the DataValue type matching the PV's ingested data (e.g. doubleValue for a PV
  * ingested as a DoubleColumn).  There is no cross-type coercion: a type mismatch between the trigger value and
- * the PV's data ends the subscription with an error.  For a PV ingested as a DataColumn the check is made per
- * value, so a value of a different type, or an unset (missing) value, also ends the subscription.
+ * the PV's data is an error.  The service sends an ExceptionalResult response and then completes the response
+ * stream, ending the whole subscription, including its other triggers.  For a PV ingested as a DataColumn the
+ * check is made per value, so a value of a different type, or an unset (missing) value, also ends the
+ * subscription.
  */
 message PvConditionTrigger {
 

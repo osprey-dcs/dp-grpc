@@ -192,12 +192,14 @@ for the two things the typed columns cannot express:
 - **mixed types** within a single column
 
 Both are accepted, stored, and returned unchanged by dp-service today.  The `Structure`, `Array`,
-and `Image` value types lose their "will probably be removed" notes for the same reason.
+and `Image` value types lose their "will probably be removed" notes too, since they are members
+of `DataValue` and stay with it.
 
 One behavior is now documented rather than left unspecified: a `subscribeDataEvent`
 `PvConditionTrigger` does no cross-type coercion.  A trigger value whose type differs from the
-PV's data ends the subscription with an error, and for a PV ingested as a `DataColumn` the check
-is per value, so an unset value ends it too.  See `PvConditionTrigger` in
+PV's data produces an `ExceptionalResult` and ends the whole subscription, including its other
+triggers.  For a PV ingested as a `DataColumn` the check is per value, so an unset value ends it
+too.  See `PvConditionTrigger` in
 [`ingestion_stream.proto`](https://github.com/osprey-dcs/dp-grpc/blob/main/src/main/proto/ingestion_stream.proto)
 and the [subscriptions recipe](https://github.com/osprey-dcs/dp-grpc/blob/main/doc/cookbook/subscriptions.md).
 

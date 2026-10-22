@@ -269,9 +269,9 @@ Three things to get right here:
   numbers out of this API.
 
 `DataColumn` and `DataValue` are not the default for *ingestion* (per-sample allocation is
-expensive), but they are the intended, supported representation for query results — precisely because the
-unset oneof gives native missing-value support that the dense column types lack.  Do not avoid
-them when reading.
+expensive), but they are the intended, supported representation for query results — precisely
+because the unset oneof gives native missing-value support that the dense column types lack.  Do
+not avoid them when reading.
 
 ## Paging a large bucket query
 

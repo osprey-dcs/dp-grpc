@@ -276,9 +276,9 @@ columns unless a column needs one of the two things only `DataColumn` can expres
 - **Mixed types.**  The values of a single column are not all of one type.
 
 `DataColumn` ingestion is supported and is not planned for removal.  One caveat: a
-[`subscribeDataEvent`](subscriptions.md) trigger on a PV ingested this way ends the subscription
-with an error when it meets a value whose type differs from the trigger value's, including an
-unset one.  `DataColumn` is also the supported representation for tabular query results and is
+[`subscribeDataEvent`](subscriptions.md) trigger on a PV ingested this way ends the whole
+subscription with an error when it meets a value whose type differs from the trigger value's,
+including an unset one.  `DataColumn` is also the supported representation for tabular query results and is
 available in Annotation Calculations.  The nested `Structure`, `Array`, and `Image` types have
 the same per-sample cost; for ingestion prefer `StructColumn`, the `*ArrayColumn` types, and
 `ImageColumn`.
