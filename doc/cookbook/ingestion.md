@@ -265,13 +265,23 @@ single `bytes` field holding the *entire* column, not one entry per sample.
 all user-defined and unvalidated.  Version them — `"beam_position:v3"`, not `"beam_position"` —
 because nothing in the platform will do it for you.
 
-`DataColumn` / `DataValue` remain in `DataFrame.dataColumns` but are **deprecated for ingestion**
-and may be removed in the next API version: they force per-sample JVM allocation and store even
-scalar values as one opaque blob.  Do not use them in new ingestion clients.  The deprecation is
-ingestion-only; `DataColumn` is still the supported representation for tabular query results and
-Annotation Calculations, where an unset `DataValue` oneof expresses a missing value.  The nested
-`Structure`, `Array`, and `Image` types are likewise deprecated for ingestion in favor of
-`StructColumn`, the `*ArrayColumn` types, and `ImageColumn`.
+`DataColumn` / `DataValue` in `DataFrame.dataColumns` are **not the default for ingestion**: they
+force per-sample JVM allocation and store even scalar values as one opaque blob.  Use the typed
+columns unless a column needs one of the two things only `DataColumn` can express:
+
+- **Missing values on a shared axis.**  Several PVs share one `SamplingClock` and a PV has no
+  sample at some of its timestamps.  An unset `DataValue` oneof marks each gap.  The alternative
+  is to give that PV its own `DataFrame` with a `TimestampList` that omits the missing
+  timestamps, on which a typed column is dense.
+- **Mixed types.**  The values of a single column are not all of one type.
+
+`DataColumn` ingestion is supported and is not planned for removal.  One caveat: a
+[`subscribeDataEvent`](subscriptions.md) trigger on a PV ingested this way ends the whole
+subscription with an error when it meets a value whose type differs from the trigger value's,
+including an unset one.  `DataColumn` is also the supported representation for tabular query results and is
+available in Annotation Calculations.  The nested `Structure`, `Array`, and `Image` types have
+the same per-sample cost; for ingestion prefer `StructColumn`, the `*ArrayColumn` types, and
+`ImageColumn`.
 
 ## Irregular sampling with an explicit timestamp list
 

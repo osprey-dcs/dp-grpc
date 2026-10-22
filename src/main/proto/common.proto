@@ -544,19 +544,28 @@ message SerializedDataColumn {
 /*
  * Data Column
  *
- * Contains a named vector of heterogeneous data values sampled for a particular PV.
+ * Contains a named vector of heterogeneous data values sampled for a particular PV.  Each DataValue carries its
+ * own type, and a DataValue whose value oneof is unset represents a missing value.  These are the two things
+ * DataColumn can express that the dense column-oriented types above cannot.
  *
- * NOTE: Use of this type for ingestion is deprecated, and may be removed in the next API version. Handling of
- * DataColumns in ingestion causes per-sample memory allocation that is inefficient. Data values are stored in the
- * database as a single opaque blob, even for scalar-valued columns. Consider using one of the above column-oriented
- * data structures for ingestion efficiency.
+ * Ingestion: use the column-oriented types above by default.  DataColumn causes per-sample memory allocation in
+ * handling ingestion requests, and its values are stored in the database as a single opaque blob, even for
+ * scalar-valued columns.  Use DataColumn for ingestion only when a column needs what the typed columns cannot
+ * express:
+ *   - missing values: several PVs share one DataTimestamps (e.g. a SamplingClock) and a PV has no sample at some
+ *     of its timestamps.  An unset DataValue marks each gap.  (Alternatively, give that PV its own DataFrame with a
+ *     TimestampList omitting the missing timestamps, on which a typed column is dense.)
+ *   - mixed types: the values of a single column are not all of one type.
+ * DataColumn ingestion is supported, and there are no plans to remove it.
  *
- * This deprecation applies to ingestion only. DataColumn remains the supported representation for tabular/sample
- * query results (e.g. the Query V2 ColumnTable), where an unset DataValue value oneof provides native
- * missing-value support that the dense column-oriented types do not.
+ * Caveat for subscribeDataEvent(): a PvConditionTrigger on a PV ingested as a DataColumn is subject to the
+ * type-matching rule described on PvConditionTrigger (ingestion_stream.proto), applied to each value.
  *
- * In Annotation Calculations, DataColumn is reachable through DataFrame.dataColumns and serves as an escape
- * hatch rather than the default: prefer the typed column-oriented types for calculation output, and reach for
+ * Query results: DataColumn is the supported representation for tabular/sample query results (e.g. the Query V2
+ * ColumnTable), where an unset DataValue marks a PV with no sample at a given timestamp.
+ *
+ * Annotation Calculations: DataColumn is reachable through DataFrame.dataColumns and serves as an escape hatch
+ * rather than the default: prefer the typed column-oriented types for calculation output, and reach for
  * DataColumn when a column is heterogeneously typed or has missing values at some timestamps.  A sparse
  * calculation does not need DataColumn — give it its own CalculationsDataFrame with its own (sparse) time axis,
  * on which its typed columns are dense.  Data frames are cheap.
@@ -574,8 +583,10 @@ message DataColumn {
  * The field 'value' is a union of all possible data types currently supported.  It represents one
  * unit of heterogeneous data.  Only one data type may be included in the message.
  *
- * NOTE: Use of this type for ingestion is deprecated, and may be removed in the next API version. Handling of
- * DataValue in ingestion causes per-sample memory allocation that is inefficient.
+ * An unset value oneof represents a missing value (see DataColumn).
+ *
+ * NOTE: Handling of DataValue in ingestion causes per-sample memory allocation that is inefficient.  For
+ * ingestion, prefer the column-oriented types and use DataColumn / DataValue only where DataColumn describes.
  *
  * Acquisition-time alarm and status information (e.g., EPICS severity and status) is expressed through the
  * Sample Status API (see annotation.proto): statuses are captured in a status domain, keyed by (pvName,
@@ -630,8 +641,7 @@ message DataValue {
  * message supporting multi-level structuring.  The depth of the structuring is currently indefinite
  * but may have practical restrictions within service implementation (yet unreported).
  *
- * NOTE: Use of this type for ingestion is deprecated and will probably be removed in the next API version.
- * Consider using StructColumn instead.
+ * NOTE: For ingestion, prefer StructColumn, which avoids per-sample allocation.
  */
 message Structure {
 
@@ -653,8 +663,7 @@ message Structure {
  * arrays.  The depth of array nesting is currently indefinite but may have practical restrictions within service
  * implementation (yet unreported).
  *
- * NOTE: Use of this type for ingestion is deprecated and will probably be removed in the next API version.
- * Consider using one of the array column types instead.
+ * NOTE: For ingestion, prefer one of the array column types, which avoid per-sample allocation.
  */
 message Array {
   repeated DataValue dataValues = 1; // List of array data values.
@@ -668,8 +677,7 @@ message Array {
  * Images are stored as raw data as a byte vector.  Interpretation is determined by standard
  * image file formats enumerated by FileType.
  *
- * Note: Use of this type for ingestion is deprecated and will probably be removed in the next API version.
- * Consider using ImageColumn instead.
+ * Note: For ingestion, prefer ImageColumn, which avoids per-sample allocation.
  */
 message Image {
 
@@ -713,7 +721,7 @@ message DataFrame {
 
   dp.service.common.DataTimestamps dataTimestamps = 1; // Required, specifies timestamps for data values.
 
-  repeated dp.service.common.DataColumn dataColumns = 2; // Deprecated legacy column type, support may be removed in the next API version.
+  repeated dp.service.common.DataColumn dataColumns = 2; // For columns with missing values or mixed types only; prefer the typed columns below (see DataColumn).
 
   repeated dp.service.common.SerializedDataColumn serializedDataColumns = 3;
 
