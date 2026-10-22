@@ -181,12 +181,14 @@ is the client's job.
 
 The threshold is a `dp.service.common.DataValue` — a oneof of scalar and complex types.  Set the
 member matching the PV's ingested type (`setDoubleValue` for a PV ingested as `DoubleColumn`).
-The proto does not document cross-type coercion, so **do not rely on it**; if you set
-`setIntValue` against a double-typed PV, the behavior is unspecified.
+There is **no cross-type coercion**: if you set `setIntValue` against a double-typed PV, the
+service reports a type mismatch and ends the subscription with an error.  For a PV ingested as a
+`DataColumn` the check is made per value, so a value of another type, or an unset (missing)
+value, ends the subscription the same way.
 
-`DataValue` is marked deprecated *for ingestion* in `common.proto` because of its per-sample
-allocation cost.  That warning does not apply here — `DataValue` is the correct and required
-type for `PvConditionTrigger.value` and `Event.dataValue`.
+`common.proto` steers ingestion away from `DataValue` because of its per-sample allocation
+cost.  That guidance does not apply here — `DataValue` is the correct and required type for
+`PvConditionTrigger.value` and `Event.dataValue`.
 
 ### 2. Register and handle events
 

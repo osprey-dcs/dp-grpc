@@ -28,6 +28,7 @@ release tag at the cut (step 5 below).
 - [Signed release artifacts (dp-grpc #137)](#signed-release-artifacts-dp-grpc-issue-137)
 - [Stub sync no longer rewrites dp-python-lib's pyproject.toml (dp-grpc #153)](#stub-sync-no-longer-rewrites-dp-python-libs-pyprojecttoml-dp-grpc-issue-153)
 - [Typed Python stubs (dp-grpc #158)](#typed-python-stubs-dp-grpc-issue-158)
+- [DataColumn ingestion is supported, not deprecated (dp-grpc #172)](#datacolumn-ingestion-is-supported-not-deprecated-dp-grpc-issue-172)
 - [Cutting the release](#cutting-the-release)
 
 ---
@@ -172,6 +173,37 @@ Two further changes to the workflow:
    carries into `Any`.
 2. **To type-check stub calls**, install `types-grpcio`. Without it, mypy reports
    `overload-cannot-match` inside the generated `*_pb2_grpc.pyi`.
+
+---
+
+## DataColumn ingestion is supported, not deprecated (dp-grpc Issue #172)
+
+Comment and documentation changes only; no change to the wire format, the generated classes, or
+service behavior.
+
+Earlier releases described `DataColumn` / `DataValue` as deprecated for ingestion, and said they
+"may be removed in the next API version".  That plan is withdrawn.  The typed column messages
+remain the default for ingestion, since `DataColumn` costs a per-sample allocation and is stored
+as an opaque blob, but `DataColumn` stays in `DataFrame` and is documented as the right choice
+for the two things the typed columns cannot express:
+
+- **missing values** at some timestamps of a `DataTimestamps` shared by several PVs, marked by an
+  unset `DataValue`
+- **mixed types** within a single column
+
+Both are accepted, stored, and returned unchanged by dp-service today.  The `Structure`, `Array`,
+and `Image` value types lose their "will probably be removed" notes for the same reason.
+
+One behavior is now documented rather than left unspecified: a `subscribeDataEvent`
+`PvConditionTrigger` does no cross-type coercion.  A trigger value whose type differs from the
+PV's data ends the subscription with an error, and for a PV ingested as a `DataColumn` the check
+is per value, so an unset value ends it too.  See `PvConditionTrigger` in
+[`ingestion_stream.proto`](https://github.com/osprey-dcs/dp-grpc/blob/main/src/main/proto/ingestion_stream.proto)
+and the [subscriptions recipe](https://github.com/osprey-dcs/dp-grpc/blob/main/doc/cookbook/subscriptions.md).
+
+### Upgrade items
+
+None.  Clients that avoided `DataColumn` because of the removal notice need not change anything.
 
 ---
 

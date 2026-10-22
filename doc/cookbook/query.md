@@ -268,8 +268,8 @@ Three things to get right here:
   yields `0.0` for missing samples.  This is the single most likely way to get quietly wrong
   numbers out of this API.
 
-`DataColumn` and `DataValue` are deprecated for *ingestion* (per-sample allocation is expensive),
-but they are the intended, supported representation for query results — precisely because the
+`DataColumn` and `DataValue` are not the default for *ingestion* (per-sample allocation is
+expensive), but they are the intended, supported representation for query results — precisely because the
 unset oneof gives native missing-value support that the dense column types lack.  Do not avoid
 them when reading.
 
